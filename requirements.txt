@@ -7,3 +7,5 @@ chromadb
 langchain-chroma
 langchain-text-splitters
 pytest
+mcp[cli]>=2
+langchain[mcp]
