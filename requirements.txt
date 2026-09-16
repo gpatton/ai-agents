@@ -3,3 +3,6 @@ python-dotenv
 langchain
 langgraph
 langchain-openai
+chromadb
+langchain-chroma
+langchain-text-splitters
