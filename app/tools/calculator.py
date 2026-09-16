@@ -1,4 +1,7 @@
-def calculator(a: float, b: float, operation: str) -> float:
+from langchain.tools import tool
+
+
+def calculate(a: float, b: float, operation: str) -> float:
     """Perform a basic mathematical operation."""
 
     if operation == "add":
@@ -16,3 +19,10 @@ def calculator(a: float, b: float, operation: str) -> float:
         return a / b
 
     raise ValueError(f"Unknown operation: {operation}")
+
+
+@tool
+def calculator(a: float, b: float, operation: str) -> float:
+    """Perform a basic mathematical operation."""
+
+    return calculate(a, b, operation)
