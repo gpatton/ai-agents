@@ -52,6 +52,12 @@ class ChatRequest(BaseModel):
         description="Message to send to AgentForge.",
     )
 
+    session_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Conversation session identifier.",
+    )
 
 
 class ChatResponse(BaseModel):
@@ -89,7 +95,10 @@ async def chat(
     current_agent: AgentForge = Depends(get_agent),
 ):    
     try:
-        answer = await current_agent.ask(request.message)
+        answer = await current_agent.ask(
+            request.message,
+            request.session_id,
+        )
         return ChatResponse(
             response=answer,
         )

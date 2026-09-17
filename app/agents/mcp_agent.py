@@ -1,11 +1,12 @@
 import logging
-import sys
 import uuid
-from app.config import settings
+
 from langchain.mcp import MCPAdapter
 from langchain_openai import ChatOpenAI
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.prebuilt import create_react_agent
 
+from app.config import settings
 from app.tool_logging import ToolLoggingCallback
 from app.tools.calculator import calculator
 from app.tools.datetime_tool import get_current_datetime
@@ -21,10 +22,9 @@ class AgentForge:
     def __init__(self):
         self.adapter = None
         self.agent = None
+        self.checkpointer = InMemorySaver()
 
     async def start(self) -> None:
-        """Initialize MCP and build the LangGraph agent."""
-
         logger.info("Starting AgentForge")
 
         self.adapter = MCPAdapter(
@@ -32,7 +32,9 @@ class AgentForge:
                 "mcpServers": {
                     "agentforge": {
                         "command": settings.mcp_server_command,
-                        "args": [settings.mcp_server_path],
+                        "args": [
+                            settings.mcp_server_path,
+                        ],
                         "transport": "stdio",
                     }
                 }
@@ -65,6 +67,7 @@ class AgentForge:
         self.agent = create_react_agent(
             model=model,
             tools=tools,
+            checkpointer=self.checkpointer,
             prompt=(
                 "You are AgentForge, a helpful AI assistant. "
                 "Use the available tools when necessary. "
@@ -83,9 +86,11 @@ class AgentForge:
 
         logger.info("AgentForge started")
 
-    async def ask(self, user_message: str) -> str:
-        """Send a message to AgentForge."""
-
+    async def ask(
+        self,
+        user_message: str,
+        session_id: str,
+    ) -> str:
         if self.agent is None:
             raise RuntimeError(
                 "AgentForge has not been started."
@@ -94,8 +99,10 @@ class AgentForge:
         request_id = str(uuid.uuid4())[:8]
 
         logger.info(
-            "Agent request started | request_id=%s | message=%r",
+            "Agent request started | request_id=%s | "
+            "session_id=%s | message=%r",
             request_id,
+            session_id,
             user_message,
         )
 
@@ -109,22 +116,25 @@ class AgentForge:
                 ]
             },
             config={
+                "configurable": {
+                    "thread_id": session_id,
+                },
                 "callbacks": [
                     ToolLoggingCallback(request_id),
-                ]
+                ],
             },
         )
 
         logger.info(
-            "Agent request completed | request_id=%s",
+            "Agent request completed | request_id=%s | "
+            "session_id=%s",
             request_id,
+            session_id,
         )
 
         return result["messages"][-1].content
 
     async def close(self) -> None:
-        """Shut down AgentForge and its MCP connection."""
-
         logger.info("Stopping AgentForge")
 
         if self.adapter is not None:
