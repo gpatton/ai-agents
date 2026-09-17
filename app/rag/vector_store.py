@@ -10,6 +10,46 @@ from app.config import settings
 
 DATA_FILE = Path("data/company_handbook.txt")
 COLLECTION_NAME = "agentforge_docs"
+FINGERPRINT_FILE = Path(settings.chroma_dir) / "document.sha256"
+
+def get_document_fingerprint() -> str:
+    """Return a SHA-256 fingerprint of the source document."""
+    content = DATA_FILE.read_bytes()
+    return hashlib.sha256(content).hexdigest()
+
+
+def get_indexed_fingerprint() -> str | None:
+    """Return the fingerprint used for the current index."""
+    if not FINGERPRINT_FILE.exists():
+        return None
+
+    return FINGERPRINT_FILE.read_text(
+        encoding="utf-8"
+    ).strip()
+
+
+def save_indexed_fingerprint(fingerprint: str) -> None:
+    """Save the fingerprint associated with the current index."""
+    FINGERPRINT_FILE.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    FINGERPRINT_FILE.write_text(
+        fingerprint,
+        encoding="utf-8",
+    )
+
+
+def vector_store_needs_indexing() -> bool:
+    """Return True when the document index needs rebuilding."""
+    current_fingerprint = get_document_fingerprint()
+    indexed_fingerprint = get_indexed_fingerprint()
+
+    if indexed_fingerprint != current_fingerprint:
+        return True
+
+    return not vector_store_has_documents()
 
 def vector_store_has_documents() -> bool:
     vector_store = get_vector_store()
@@ -86,4 +126,10 @@ def create_vector_store() -> Chroma:
         ids=ids,
     )
 
+    save_indexed_fingerprint(
+        get_document_fingerprint()
+    )
+
     return vector_store
+    
+
