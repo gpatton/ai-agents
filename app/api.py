@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 import logging
-
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
@@ -45,7 +45,13 @@ app = FastAPI(
 
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(
+        ...,
+        min_length=1,
+        max_length=4000,
+        description="Message to send to AgentForge.",
+    )
+
 
 
 class ChatResponse(BaseModel):
@@ -59,6 +65,20 @@ async def health():
         "service": "AgentForge",
     }
 
+@app.get("/ready")
+async def ready(
+    current_agent: AgentForge = Depends(get_agent),
+):
+    if current_agent.agent is None:
+        raise HTTPException(
+            status_code=503,
+            detail="AgentForge is not ready.",
+        )
+
+    return {
+        "status": "ready",
+        "service": "AgentForge",
+    }
 
 @app.post(
     "/chat",
