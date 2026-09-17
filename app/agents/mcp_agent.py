@@ -1,7 +1,7 @@
 import logging
 import sys
 import uuid
-
+from app.config import settings
 from langchain.mcp import MCPAdapter
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
@@ -31,8 +31,8 @@ class AgentForge:
             {
                 "mcpServers": {
                     "agentforge": {
-                        "command": sys.executable,
-                        "args": ["app/mcp/server.py"],
+                        "command": settings.mcp_server_command,
+                        "args": [settings.mcp_server_path],
                         "transport": "stdio",
                     }
                 }
@@ -58,7 +58,7 @@ class AgentForge:
         ]
 
         model = ChatOpenAI(
-            model="gpt-5.4-mini",
+            model=settings.model_name,
             temperature=0,
         )
 

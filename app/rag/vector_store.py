@@ -1,12 +1,11 @@
 from pathlib import Path
-
+from app.config import settings
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
 DATA_FILE = Path("data/company_handbook.txt")
-CHROMA_DIR = "chroma_db"
 
 
 def load_document() -> str:
@@ -37,7 +36,7 @@ def create_vector_store():
     vector_store = Chroma(
         collection_name="agentforge_docs",
         embedding_function=embeddings,
-        persist_directory=CHROMA_DIR,
+        persist_directory=settings.chroma_dir,
     )
 
     vector_store.add_documents(documents)
@@ -55,5 +54,5 @@ def get_vector_store():
     return Chroma(
         collection_name="agentforge_docs",
         embedding_function=embeddings,
-        persist_directory=CHROMA_DIR,
+        persist_directory=settings.chroma_dir,
     )
