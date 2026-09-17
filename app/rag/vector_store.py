@@ -11,6 +11,9 @@ from app.config import settings
 DATA_FILE = Path("data/company_handbook.txt")
 COLLECTION_NAME = "agentforge_docs"
 
+def vector_store_has_documents() -> bool:
+    vector_store = get_vector_store()
+    return vector_store._collection.count() > 0
 
 def load_document() -> str:
     """Load the AgentForge handbook."""

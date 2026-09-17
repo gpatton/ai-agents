@@ -10,6 +10,9 @@ services:
       - "8000:8000"
     restart: unless-stopped
 
+    volumes:
+      - agentforge_chroma:/app/chroma_db
+
     healthcheck:
       test:
         - CMD
@@ -20,3 +23,6 @@ services:
       timeout: 5s
       retries: 6
       start_period: 60s
+
+volumes:
+  agentforge_chroma:

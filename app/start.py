@@ -3,8 +3,10 @@ import logging
 import uvicorn
 
 from app.logging_config import setup_logging
-from app.rag.vector_store import create_vector_store
-
+from app.rag.vector_store import (
+    create_vector_store,
+    vector_store_has_documents,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -12,12 +14,20 @@ logger = logging.getLogger(__name__)
 def main():
     setup_logging()
 
-    logger.info("Preparing AgentForge vector store")
+    logger.info("Checking AgentForge vector store")
 
-    create_vector_store()
+    if vector_store_has_documents():
+        logger.info(
+        "Existing vector store found; skipping indexing"
+        )
+    else:
+        logger.info(
+        "Vector store is empty; indexing documents"
+        )
+        create_vector_store()
+        logger.info("Document indexing completed")
 
     logger.info("Vector store ready")
-
     uvicorn.run(
         "app.api:app",
         host="0.0.0.0",
