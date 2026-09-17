@@ -1,4 +1,4 @@
-from langchain.tools import tool
+from langchain_core.tools import ToolException, tool
 
 
 def calculate(a: float, b: float, operation: str) -> float:
@@ -25,4 +25,10 @@ def calculate(a: float, b: float, operation: str) -> float:
 def calculator(a: float, b: float, operation: str) -> float:
     """Perform a basic mathematical operation."""
 
-    return calculate(a, b, operation)
+    try:
+        return calculate(a, b, operation)
+    except ValueError as error:
+        raise ToolException(str(error)) from error
+
+
+calculator.handle_tool_error = True
