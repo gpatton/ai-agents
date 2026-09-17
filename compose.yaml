@@ -1,0 +1,11 @@
+services:
+  agentforge:
+    build:
+      context: .
+    image: agentforge:latest
+    container_name: agentforge
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
