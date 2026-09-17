@@ -2,6 +2,13 @@ import os
 import sys
 from dataclasses import dataclass
 
+from dotenv import load_dotenv
+
+
+# Load environment variables from .env before
+# creating the application settings.
+load_dotenv()
+
 
 @dataclass(frozen=True)
 class Settings:
