@@ -9,6 +9,8 @@ from app.agents.mcp_agent import AgentForge
 from app.conversation_repository import ConversationRepository
 from app.conversations import create_conversation
 from app.logging_config import setup_logging
+from app.message_repository import MessageRepository
+from app.messages import create_message
 
 
 load_dotenv()
@@ -16,8 +18,10 @@ setup_logging()
 
 logger = logging.getLogger(__name__)
 
+
 agent = AgentForge()
 conversation_repository = ConversationRepository()
+message_repository = MessageRepository()
 
 
 def get_agent() -> AgentForge:
@@ -28,11 +32,16 @@ def get_conversation_repository() -> ConversationRepository:
     return conversation_repository
 
 
+def get_message_repository() -> MessageRepository:
+    return message_repository
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting AgentForge API")
 
     await conversation_repository.setup()
+    await message_repository.setup()
     await agent.start()
 
     yield
@@ -85,6 +94,17 @@ class ConversationResponse(BaseModel):
     id: str
     title: str
     created_at: str
+
+class MessageResponse(BaseModel):
+    id: str
+    role: str
+    content: str
+    created_at: str
+
+
+class ConversationMessagesResponse(BaseModel):
+    conversation_id: str
+    messages: list[MessageResponse]
 
 
 @app.get("/health")
@@ -184,20 +204,21 @@ async def get_conversation(
         created_at=conversation.created_at.isoformat(),
     )
 
-
-@app.post(
-    "/chat",
-    response_model=ChatResponse,
+@app.get(
+    "/conversations/{conversation_id}/messages",
+    response_model=ConversationMessagesResponse,
 )
-async def chat(
-    request: ChatRequest,
-    current_agent: AgentForge = Depends(get_agent),
+async def get_conversation_messages(
+    conversation_id: str,
     repository: ConversationRepository = Depends(
         get_conversation_repository
     ),
+    messages: MessageRepository = Depends(
+        get_message_repository
+    ),
 ):
     conversation = await repository.get(
-        request.session_id
+        conversation_id
     )
 
     if conversation is None:
@@ -206,25 +227,24 @@ async def chat(
             detail="Conversation not found.",
         )
 
-    try:
-        answer = await current_agent.ask(
-            request.message,
-            request.session_id,
+    conversation_messages = (
+        await messages.list_for_conversation(
+            conversation_id
         )
+    )
 
-        return ChatResponse(
-            response=answer
-        )
-
-    except Exception:
-        logger.exception(
-            "Agent request failed"
-        )
-
-        raise HTTPException(
-            status_code=500,
-            detail="Agent request failed.",
-        )
+    return ConversationMessagesResponse(
+        conversation_id=conversation_id,
+        messages=[
+            MessageResponse(
+                id=message.id,
+                role=message.role,
+                content=message.content,
+                created_at=message.created_at.isoformat(),
+            )
+            for message in conversation_messages
+        ],
+    )
 
 @app.delete(
     "/conversations/{conversation_id}",
@@ -264,4 +284,69 @@ async def delete_conversation(
         raise HTTPException(
             status_code=500,
             detail="Conversation deletion failed.",
+        )
+
+
+@app.post(
+    "/chat",
+    response_model=ChatResponse,
+)
+async def chat(
+    request: ChatRequest,
+    current_agent: AgentForge = Depends(get_agent),
+    repository: ConversationRepository = Depends(
+        get_conversation_repository
+    ),
+    messages: MessageRepository = Depends(
+        get_message_repository
+    ),
+):
+    conversation = await repository.get(
+        request.session_id
+    )
+
+    if conversation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Conversation not found.",
+        )
+
+    try:
+        answer = await current_agent.ask(
+            request.message,
+            request.session_id,
+        )
+
+        user_message = create_message(
+            conversation_id=request.session_id,
+            role="user",
+            content=request.message,
+        )
+
+        assistant_message = create_message(
+            conversation_id=request.session_id,
+            role="assistant",
+            content=answer,
+        )
+
+        await messages.save(
+            user_message
+        )
+
+        await messages.save(
+            assistant_message
+        )
+
+        return ChatResponse(
+            response=answer
+        )
+
+    except Exception:
+        logger.exception(
+            "Agent request failed"
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Agent request failed.",
         )
