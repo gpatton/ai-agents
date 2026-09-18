@@ -3,7 +3,7 @@ import uuid
 
 from langchain.mcp import MCPAdapter
 from langchain_openai import ChatOpenAI
-from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.prebuilt import create_react_agent
 
 from app.config import settings
@@ -22,11 +22,31 @@ class AgentForge:
     def __init__(self):
         self.adapter = None
         self.agent = None
-        self.checkpointer = InMemorySaver()
+        self.checkpointer = None
+        self.checkpointer_context = None
 
     async def start(self) -> None:
         logger.info("Starting AgentForge")
 
+        # Connect to the PostgreSQL checkpoint store.
+        self.checkpointer_context = (
+            AsyncPostgresSaver.from_conn_string(
+                settings.database_url
+            )
+        )
+
+        self.checkpointer = (
+            await self.checkpointer_context.__aenter__()
+        )
+
+        # Create or migrate the LangGraph checkpoint tables.
+        await self.checkpointer.setup()
+
+        logger.info(
+            "Connected to PostgreSQL checkpoint store"
+        )
+
+        # Connect to the AgentForge MCP server.
         self.adapter = MCPAdapter(
             {
                 "mcpServers": {
@@ -144,7 +164,16 @@ class AgentForge:
                 None,
             )
 
+        if self.checkpointer_context is not None:
+            await self.checkpointer_context.__aexit__(
+                None,
+                None,
+                None,
+            )
+
         self.agent = None
         self.adapter = None
+        self.checkpointer = None
+        self.checkpointer_context = None
 
         logger.info("AgentForge stopped")

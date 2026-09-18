@@ -36,6 +36,11 @@ class Settings:
         "MCP_SERVER_PATH",
         "app/mcp/server.py",
     )
+    
+    database_url: str = os.getenv(
+        "DATABASE_URL",
+        "postgresql://agentforge:agentforge@localhost:5432/agentforge",
+    )
 
 
 settings = Settings()

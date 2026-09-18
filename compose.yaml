@@ -1,4 +1,22 @@
 services:
+  postgres:
+    image: postgres:17
+    container_name: agentforge-postgres
+    environment:
+      POSTGRES_DB: agentforge
+      POSTGRES_USER: agentforge
+      POSTGRES_PASSWORD: agentforge
+    volumes:
+      - agentforge_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U agentforge -d agentforge
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   agentforge:
     build:
       context: .
@@ -6,9 +24,15 @@ services:
     container_name: agentforge
     env_file:
       - .env
+    environment:
+      DATABASE_URL: postgresql://agentforge:agentforge@postgres:5432/agentforge
     ports:
       - "8000:8000"
     restart: unless-stopped
+
+    depends_on:
+      postgres:
+        condition: service_healthy
 
     volumes:
       - agentforge_chroma:/app/chroma_db
@@ -26,3 +50,4 @@ services:
 
 volumes:
   agentforge_chroma:
+  agentforge_postgres:
