@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class AgentForge:
-    """AgentForge AI agent with local, RAG, and MCP tools."""
+    """AgentForge AI agent with local, RAG, MCP, and persistent memory."""
 
     def __init__(self):
         self.adapter = None
@@ -28,7 +28,7 @@ class AgentForge:
     async def start(self) -> None:
         logger.info("Starting AgentForge")
 
-        # Connect to the PostgreSQL checkpoint store.
+        # Connect to PostgreSQL for persistent LangGraph checkpoints.
         self.checkpointer_context = (
             AsyncPostgresSaver.from_conn_string(
                 settings.database_url
@@ -39,7 +39,7 @@ class AgentForge:
             await self.checkpointer_context.__aenter__()
         )
 
-        # Create or migrate the LangGraph checkpoint tables.
+        # Create/migrate LangGraph checkpoint tables.
         await self.checkpointer.setup()
 
         logger.info(
@@ -153,6 +153,26 @@ class AgentForge:
         )
 
         return result["messages"][-1].content
+
+    async def delete_conversation(
+        self,
+        session_id: str,
+    ) -> None:
+        """Delete persisted LangGraph state for a conversation."""
+
+        if self.checkpointer is None:
+            raise RuntimeError(
+                "AgentForge has not been started."
+            )
+
+        await self.checkpointer.adelete_thread(
+            session_id
+        )
+
+        logger.info(
+            "Conversation state deleted | session_id=%s",
+            session_id,
+        )
 
     async def close(self) -> None:
         logger.info("Stopping AgentForge")
