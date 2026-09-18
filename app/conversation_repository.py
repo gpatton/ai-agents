@@ -1,18 +1,21 @@
-from psycopg import AsyncConnection
+from psycopg_pool import AsyncConnectionPool
 
-from app.config import settings
 from app.conversations import Conversation
 
 
 class ConversationRepository:
     """Store and retrieve AgentForge conversations."""
 
+    def __init__(
+        self,
+        pool: AsyncConnectionPool,
+    ):
+        self.pool = pool
+
     async def setup(self) -> None:
         """Create the conversations table if required."""
 
-        async with await AsyncConnection.connect(
-            settings.database_url
-        ) as connection:
+        async with self.pool.connection() as connection:
             await connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS conversations (
@@ -29,9 +32,7 @@ class ConversationRepository:
     ) -> None:
         """Save conversation metadata."""
 
-        async with await AsyncConnection.connect(
-            settings.database_url
-        ) as connection:
+        async with self.pool.connection() as connection:
             await connection.execute(
                 """
                 INSERT INTO conversations (
@@ -54,9 +55,7 @@ class ConversationRepository:
     ) -> Conversation | None:
         """Retrieve a conversation by ID."""
 
-        async with await AsyncConnection.connect(
-            settings.database_url
-        ) as connection:
+        async with self.pool.connection() as connection:
             cursor = await connection.execute(
                 """
                 SELECT
@@ -85,9 +84,7 @@ class ConversationRepository:
     ) -> list[Conversation]:
         """Return all conversations."""
 
-        async with await AsyncConnection.connect(
-            settings.database_url
-        ) as connection:
+        async with self.pool.connection() as connection:
             cursor = await connection.execute(
                 """
                 SELECT
@@ -116,9 +113,7 @@ class ConversationRepository:
     ) -> bool:
         """Delete conversation metadata."""
 
-        async with await AsyncConnection.connect(
-            settings.database_url
-        ) as connection:
+        async with self.pool.connection() as connection:
             cursor = await connection.execute(
                 """
                 DELETE FROM conversations

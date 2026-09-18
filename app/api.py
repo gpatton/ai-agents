@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 import logging
-
+from app.database import Database
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
@@ -21,9 +21,16 @@ logger = logging.getLogger(__name__)
 
 
 agent = AgentForge()
-conversation_repository = ConversationRepository()
-message_repository = MessageRepository()
 
+database = Database()
+
+conversation_repository = ConversationRepository(
+    database.pool
+)
+
+message_repository = MessageRepository(
+    database.pool
+)
 
 def get_agent() -> AgentForge:
     return agent
@@ -41,16 +48,19 @@ def get_message_repository() -> MessageRepository:
 async def lifespan(app: FastAPI):
     logger.info("Starting AgentForge API")
 
+    await database.start()
+
     await conversation_repository.setup()
     await message_repository.setup()
+
     await agent.start()
 
     yield
 
     await agent.close()
+    await database.close()
 
     logger.info("AgentForge API stopped")
-
 
 app = FastAPI(
     title="AgentForge API",

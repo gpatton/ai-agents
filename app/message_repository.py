@@ -1,18 +1,21 @@
-from psycopg import AsyncConnection
+from psycopg_pool import AsyncConnectionPool
 
-from app.config import settings
 from app.messages import Message
 
 
 class MessageRepository:
     """Store and retrieve AgentForge conversation messages."""
 
+    def __init__(
+        self,
+        pool: AsyncConnectionPool,
+    ):
+        self.pool = pool
+
     async def setup(self) -> None:
         """Create the messages table if required."""
 
-        async with await AsyncConnection.connect(
-            settings.database_url
-        ) as connection:
+        async with self.pool.connection() as connection:
             await connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS messages (
@@ -39,9 +42,7 @@ class MessageRepository:
     ) -> None:
         """Save a conversation message."""
 
-        async with await AsyncConnection.connect(
-            settings.database_url
-        ) as connection:
+        async with self.pool.connection() as connection:
             await connection.execute(
                 """
                 INSERT INTO messages (
@@ -68,9 +69,7 @@ class MessageRepository:
     ) -> list[Message]:
         """Return messages for a conversation."""
 
-        async with await AsyncConnection.connect(
-            settings.database_url
-        ) as connection:
+        async with self.pool.connection() as connection:
             cursor = await connection.execute(
                 """
                 SELECT
