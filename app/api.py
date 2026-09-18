@@ -3,6 +3,7 @@ import logging
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.agents.mcp_agent import AgentForge
@@ -350,3 +351,68 @@ async def chat(
             status_code=500,
             detail="Agent request failed.",
         )
+
+@app.post("/chat/stream")
+async def stream_chat(
+    request: ChatRequest,
+    current_agent: AgentForge = Depends(get_agent),
+    repository: ConversationRepository = Depends(
+        get_conversation_repository
+    ),
+    messages: MessageRepository = Depends(
+        get_message_repository
+    ),
+):
+    conversation = await repository.get(
+        request.session_id
+    )
+
+    if conversation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Conversation not found.",
+        )
+
+    async def generate():
+        response_parts = []
+
+        try:
+            async for chunk in current_agent.stream(
+                request.message,
+                request.session_id,
+            ):
+                response_parts.append(chunk)
+                yield chunk
+
+            answer = "".join(response_parts)
+
+            user_message = create_message(
+                conversation_id=request.session_id,
+                role="user",
+                content=request.message,
+            )
+
+            assistant_message = create_message(
+                conversation_id=request.session_id,
+                role="assistant",
+                content=answer,
+            )
+
+            await messages.save(
+                user_message
+            )
+
+            await messages.save(
+                assistant_message
+            )
+
+        except Exception:
+            logger.exception(
+                "Agent streaming request failed"
+            )
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/plain",
+    )
+

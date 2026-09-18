@@ -20,6 +20,15 @@ class FakeAgent:
     ) -> str:
         return f"Test response: {message}"
 
+    async def stream(
+        self,
+        message: str,
+        session_id: str,
+    ):
+        yield "Hello "
+        yield "from "
+        yield "AgentForge"
+
     async def delete_conversation(
         self,
         session_id: str,
@@ -454,6 +463,56 @@ def test_get_messages_unknown_conversation_returns_404():
 
     response = client.get(
         "/conversations/does-not-exist/messages"
+    )
+
+    assert response.status_code == 404
+
+    assert response.json() == {
+        "detail": "Conversation not found.",
+    }
+
+def test_stream_chat():
+    client = TestClient(app)
+
+    fake_message_repository.messages.clear()
+
+    response = client.post(
+        "/chat/stream",
+        json={
+            "message": "Hello",
+            "session_id": "test-session",
+        },
+    )
+
+    assert response.status_code == 200
+
+    assert (
+        response.text
+        == "Hello from AgentForge"
+    )
+
+    assert len(
+        fake_message_repository.messages
+    ) == 2
+
+    assert (
+        fake_message_repository.messages[0].content
+        == "Hello"
+    )
+
+    assert (
+        fake_message_repository.messages[1].content
+        == "Hello from AgentForge"
+    )
+def test_stream_unknown_conversation_returns_404():
+    client = TestClient(app)
+
+    response = client.post(
+        "/chat/stream",
+        json={
+            "message": "Hello",
+            "session_id": "does-not-exist",
+        },
     )
 
     assert response.status_code == 404

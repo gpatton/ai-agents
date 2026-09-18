@@ -5,7 +5,7 @@ from langchain.mcp import MCPAdapter
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.prebuilt import create_react_agent
-
+from collections.abc import AsyncIterator
 from app.config import settings
 from app.tool_logging import ToolLoggingCallback
 from app.tools.calculator import calculator
@@ -153,6 +153,63 @@ class AgentForge:
         )
 
         return result["messages"][-1].content
+    async def stream(
+        self,
+        user_message: str,
+        session_id: str,
+    ) -> AsyncIterator[str]:
+        """Stream an AgentForge response."""
+
+        if self.agent is None:
+            raise RuntimeError(
+                "AgentForge has not been started."
+            )
+
+        request_id = str(uuid.uuid4())[:8]
+
+        logger.info(
+            "Agent stream started | request_id=%s | "
+            "session_id=%s | message=%r",
+            request_id,
+            session_id,
+            user_message,
+        )
+
+        async for message, metadata in self.agent.astream(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": user_message,
+                    }
+                ]
+            },
+            config={
+                "configurable": {
+                    "thread_id": session_id,
+                },
+                "callbacks": [
+                    ToolLoggingCallback(request_id),
+                ],
+            },
+            stream_mode="messages",
+        ):
+            content = getattr(
+                message,
+                "content",
+                None,
+            )
+
+            if isinstance(content, str) and content:
+                yield content
+
+        logger.info(
+            "Agent stream completed | request_id=%s | "
+            "session_id=%s",
+            request_id,
+            session_id,
+        )
+
 
     async def delete_conversation(
         self,
