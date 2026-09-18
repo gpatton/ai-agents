@@ -12,20 +12,6 @@ class ConversationRepository:
     ):
         self.pool = pool
 
-    async def setup(self) -> None:
-        """Create the conversations table if required."""
-
-        async with self.pool.connection() as connection:
-            await connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS conversations (
-                    id TEXT PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    created_at TIMESTAMPTZ NOT NULL
-                )
-                """
-            )
-
     async def save(
         self,
         conversation: Conversation,

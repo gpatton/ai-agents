@@ -50,8 +50,6 @@ async def lifespan(app: FastAPI):
 
     await database.start()
 
-    await conversation_repository.setup()
-    await message_repository.setup()
 
     await agent.start()
 

@@ -6,16 +6,10 @@ services:
       POSTGRES_DB: agentforge
       POSTGRES_USER: agentforge
       POSTGRES_PASSWORD: agentforge
+    ports:
+      - "55433:5432"
     volumes:
       - agentforge_postgres:/var/lib/postgresql/data
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - pg_isready -U agentforge -d agentforge
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
 
   agentforge:
     build:
@@ -28,14 +22,6 @@ services:
       DATABASE_URL: postgresql://agentforge:agentforge@postgres:5432/agentforge
     ports:
       - "8000:8000"
-    restart: unless-stopped
-
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-    volumes:
-      - agentforge_chroma:/app/chroma_db
 
     healthcheck:
       test:
