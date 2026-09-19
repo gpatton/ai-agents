@@ -40,6 +40,16 @@ class FakeConversationRepository:
     def __init__(self):
         self.conversations = {}
 
+    async def rename(self, conversation_id: str, title: str):
+        conversation = self.conversations.get(conversation_id)
+
+        if conversation is None:
+            return None
+
+        conversation.title = title
+        return conversation
+
+
     async def save(
         self,
         conversation,
@@ -520,3 +530,88 @@ def test_stream_unknown_conversation_returns_404():
     assert response.json() == {
         "detail": "Conversation not found.",
     }
+
+async def rename(
+    self,
+    conversation_id: str,
+    title: str,
+):
+    conversation = self.conversations.get(
+        conversation_id
+    )
+
+    if conversation is None:
+        return None
+
+    conversation.title = title
+    return conversation
+
+
+def test_rename_conversation():
+    client = TestClient(app)
+
+    response = client.patch(
+        "/conversations/test-session",
+        json={
+            "title": "Employee policy questions",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["id"] == "test-session"
+    assert data["title"] == "Employee policy questions"
+    assert data["created_at"]
+
+    stored_conversation = (
+        fake_repository.conversations["test-session"]
+    )
+
+    assert (
+        stored_conversation.title
+        == "Employee policy questions"
+    )
+
+
+def test_rename_unknown_conversation_returns_404():
+    client = TestClient(app)
+
+    response = client.patch(
+        "/conversations/does-not-exist",
+        json={
+            "title": "Updated title",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Conversation not found.",
+    }
+
+
+def test_rename_conversation_rejects_empty_title():
+    client = TestClient(app)
+
+    response = client.patch(
+        "/conversations/test-session",
+        json={
+            "title": "",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_rename_conversation_rejects_long_title():
+    client = TestClient(app)
+
+    response = client.patch(
+        "/conversations/test-session",
+        json={
+            "title": "A" * 201,
+        },
+    )
+
+    assert response.status_code == 422

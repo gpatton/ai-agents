@@ -70,7 +70,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-
+class RenameConversationRequest(BaseModel):
+    title: str = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+    )
 class ChatRequest(BaseModel):
     message: str = Field(
         ...,
@@ -199,6 +204,34 @@ async def get_conversation(
 ):
     conversation = await repository.get(
         conversation_id
+    )
+
+    if conversation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Conversation not found.",
+        )
+
+    return ConversationResponse(
+        id=conversation.id,
+        title=conversation.title,
+        created_at=conversation.created_at.isoformat(),
+    )
+
+@app.patch(
+    "/conversations/{conversation_id}",
+    response_model=ConversationResponse,
+)
+async def rename_conversation(
+    conversation_id: str,
+    request: RenameConversationRequest,
+    repository: ConversationRepository = Depends(
+        get_conversation_repository
+    ),
+):
+    conversation = await repository.rename(
+        conversation_id,
+        request.title,
     )
 
     if conversation is None:
