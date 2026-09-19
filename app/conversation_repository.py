@@ -10,6 +10,39 @@ class ConversationRepository:
         pool: AsyncConnectionPool,
     ):
         self.pool = pool
+    
+    async def list_page(
+        self,
+        limit: int,
+        offset: int,
+    ) -> list[Conversation]:
+        """Return a page of conversations, newest first."""
+
+        async with self.pool.connection() as connection:
+            cursor = await connection.execute(
+                """
+                SELECT
+                    id,
+                    title,
+                    created_at
+                FROM conversations
+                ORDER BY created_at DESC, id DESC
+                LIMIT %s
+                OFFSET %s
+                """,
+                (limit, offset),
+            )
+
+            rows = await cursor.fetchall()
+
+        return [
+            Conversation(
+                id=row[0],
+                title=row[1],
+                created_at=row[2],
+            )
+            for row in rows
+        ]
 
     async def rename(
         self,

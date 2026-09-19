@@ -71,6 +71,25 @@ class FakeConversationRepository:
             self.conversations.values()
         )
 
+    async def list_page(
+        self,
+        limit: int,
+        offset: int,
+    ):
+        conversations = await self.list_all()
+
+        conversations = sorted(
+            conversations,
+            key=lambda conversation: (
+                conversation.created_at,
+                conversation.id,
+            ),
+            reverse=True,
+        )
+
+        return conversations[offset : offset + limit]
+
+
     async def delete(
         self,
         conversation_id,
@@ -612,6 +631,60 @@ def test_rename_conversation_rejects_long_title():
         json={
             "title": "A" * 201,
         },
+    )
+
+    assert response.status_code == 422
+
+def test_list_conversations_respects_limit():
+    client = TestClient(app)
+
+    response = client.get("/conversations?limit=1&offset=0")
+
+    assert response.status_code == 200
+    assert len(response.json()) <= 1
+
+
+def test_list_conversations_respects_offset():
+    client = TestClient(app)
+
+    first_page = client.get(
+        "/conversations?limit=1&offset=0"
+    )
+    second_page = client.get(
+        "/conversations?limit=1&offset=1"
+    )
+
+    assert first_page.status_code == 200
+    assert second_page.status_code == 200
+
+    first_ids = {
+        conversation["id"]
+        for conversation in first_page.json()
+    }
+    second_ids = {
+        conversation["id"]
+        for conversation in second_page.json()
+    }
+
+    assert first_ids.isdisjoint(second_ids)
+
+
+def test_list_conversations_rejects_invalid_limit():
+    client = TestClient(app)
+
+    for limit in (0, -1, 101):
+        response = client.get(
+            f"/conversations?limit={limit}"
+        )
+
+        assert response.status_code == 422
+
+
+def test_list_conversations_rejects_negative_offset():
+    client = TestClient(app)
+
+    response = client.get(
+        "/conversations?offset=-1"
     )
 
     assert response.status_code == 422

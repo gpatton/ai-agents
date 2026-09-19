@@ -12,7 +12,7 @@ from app.conversations import create_conversation
 from app.logging_config import setup_logging
 from app.message_repository import MessageRepository
 from app.messages import create_message
-
+from fastapi import Query  # Add Query to your existing FastAPI imports.
 
 load_dotenv()
 setup_logging()
@@ -170,17 +170,18 @@ async def create_conversation_endpoint(
         created_at=conversation.created_at.isoformat(),
     )
 
-
-@app.get(
-    "/conversations",
-    response_model=list[ConversationResponse],
-)
+@app.get("/conversations", response_model=list[ConversationResponse])
 async def list_conversations(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     repository: ConversationRepository = Depends(
         get_conversation_repository
     ),
 ):
-    conversations = await repository.list_all()
+    conversations = await repository.list_page(
+        limit=limit,
+        offset=offset,
+    )
 
     return [
         ConversationResponse(
