@@ -169,30 +169,3 @@ class ConversationRepository:
 
             return cursor.rowcount > 0
 
-async def rename(
-    self,
-    conversation_id: str,
-    title: str,
-) -> Conversation | None:
-    """Rename a conversation and return its updated metadata."""
-
-    async with self.pool.connection() as connection:
-        cursor = await connection.execute(
-            """
-            UPDATE conversations
-            SET title = %s
-            WHERE id = %s
-            RETURNING id, title, created_at
-            """,
-            (title, conversation_id),
-        )
-        row = await cursor.fetchone()
-
-    if row is None:
-        return None
-
-    return Conversation(
-        id=row[0],
-        title=row[1],
-        created_at=row[2],
-    )
