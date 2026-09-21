@@ -1,11 +1,12 @@
 from contextlib import asynccontextmanager
 import logging
 from app.database import Database
+from app.auth import get_current_user_id
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-
+from app.user_repository import UserRepository
 from app.agents.mcp_agent import AgentForge
 from app.conversation_repository import ConversationRepository
 from app.conversations import create_conversation
@@ -31,6 +32,18 @@ conversation_repository = ConversationRepository(
 message_repository = MessageRepository(
     database.pool
 )
+user_repository = UserRepository(database.pool)
+
+def get_user_repository() -> UserRepository:
+    return user_repository
+
+async def get_registered_user_id(
+    user_id: str = Depends(get_current_user_id),
+    repository: UserRepository = Depends(get_user_repository),
+) -> str:
+    """Return the verified Clerk user ID after ensuring a local user exists."""
+    await repository.ensure_user(user_id)
+    return user_id
 
 def get_agent() -> AgentForge:
     return agent
@@ -150,37 +163,40 @@ async def ready(
     response_model=ConversationResponse,
     status_code=201,
 )
+
 async def create_conversation_endpoint(
     request: CreateConversationRequest,
     repository: ConversationRepository = Depends(
         get_conversation_repository
     ),
+    user_id: str = Depends(get_registered_user_id),
 ):
     conversation = create_conversation(
-        request.title
+        request.title,
+        user_id=user_id,
     )
 
-    await repository.save(
-        conversation
-    )
+    await repository.save(conversation)
 
     return ConversationResponse(
         id=conversation.id,
         title=conversation.title,
         created_at=conversation.created_at.isoformat(),
     )
-
 @app.get("/conversations", response_model=list[ConversationResponse])
+
 async def list_conversations(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     repository: ConversationRepository = Depends(
         get_conversation_repository
     ),
+    user_id: str = Depends(get_registered_user_id),
 ):
     conversations = await repository.list_page(
         limit=limit,
         offset=offset,
+        user_id=user_id,
     )
 
     return [
@@ -192,19 +208,21 @@ async def list_conversations(
         for conversation in conversations
     ]
 
-
 @app.get(
     "/conversations/{conversation_id}",
     response_model=ConversationResponse,
 )
+
 async def get_conversation(
     conversation_id: str,
     repository: ConversationRepository = Depends(
         get_conversation_repository
     ),
+    user_id: str = Depends(get_registered_user_id),
 ):
     conversation = await repository.get(
-        conversation_id
+        conversation_id,
+        user_id,
     )
 
     if conversation is None:
@@ -218,21 +236,23 @@ async def get_conversation(
         title=conversation.title,
         created_at=conversation.created_at.isoformat(),
     )
-
 @app.patch(
     "/conversations/{conversation_id}",
     response_model=ConversationResponse,
 )
+
 async def rename_conversation(
     conversation_id: str,
     request: RenameConversationRequest,
     repository: ConversationRepository = Depends(
         get_conversation_repository
     ),
+    user_id: str = Depends(get_registered_user_id),
 ):
     conversation = await repository.rename(
         conversation_id,
         request.title,
+        user_id,
     )
 
     if conversation is None:
@@ -246,11 +266,11 @@ async def rename_conversation(
         title=conversation.title,
         created_at=conversation.created_at.isoformat(),
     )
-
 @app.get(
     "/conversations/{conversation_id}/messages",
     response_model=ConversationMessagesResponse,
 )
+
 async def get_conversation_messages(
     conversation_id: str,
     repository: ConversationRepository = Depends(
@@ -259,9 +279,11 @@ async def get_conversation_messages(
     messages: MessageRepository = Depends(
         get_message_repository
     ),
+    user_id: str = Depends(get_registered_user_id),
 ):
     conversation = await repository.get(
-        conversation_id
+        conversation_id,
+        user_id,
     )
 
     if conversation is None:
@@ -270,10 +292,8 @@ async def get_conversation_messages(
             detail="Conversation not found.",
         )
 
-    conversation_messages = (
-        await messages.list_for_conversation(
-            conversation_id
-        )
+    conversation_messages = await messages.list_for_conversation(
+        conversation_id
     )
 
     return ConversationMessagesResponse(
@@ -288,20 +308,22 @@ async def get_conversation_messages(
             for message in conversation_messages
         ],
     )
-
 @app.delete(
     "/conversations/{conversation_id}",
     status_code=204,
 )
+
 async def delete_conversation(
     conversation_id: str,
     current_agent: AgentForge = Depends(get_agent),
     repository: ConversationRepository = Depends(
         get_conversation_repository
     ),
+    user_id: str = Depends(get_registered_user_id),
 ):
     conversation = await repository.get(
-        conversation_id
+        conversation_id,
+        user_id,
     )
 
     if conversation is None:
@@ -315,25 +337,33 @@ async def delete_conversation(
             conversation_id
         )
 
-        await repository.delete(
-            conversation_id
+        deleted = await repository.delete(
+            conversation_id,
+            user_id,
         )
 
+        if not deleted:
+            raise HTTPException(
+                status_code=404,
+                detail="Conversation not found.",
+            )
+
+    except HTTPException:
+        raise
+
     except Exception:
-        logger.exception(
-            "Conversation deletion failed"
-        )
+        logger.exception("Conversation deletion failed")
 
         raise HTTPException(
             status_code=500,
             detail="Conversation deletion failed.",
-        )
-
+        ) from None
 
 @app.post(
     "/chat",
     response_model=ChatResponse,
 )
+
 async def chat(
     request: ChatRequest,
     current_agent: AgentForge = Depends(get_agent),
@@ -343,9 +373,11 @@ async def chat(
     messages: MessageRepository = Depends(
         get_message_repository
     ),
+    user_id: str = Depends(get_registered_user_id),
 ):
     conversation = await repository.get(
-        request.session_id
+        request.session_id,
+        user_id,
     )
 
     if conversation is None:
@@ -372,29 +404,20 @@ async def chat(
             content=answer,
         )
 
-        await messages.save(
-            user_message
-        )
+        await messages.save(user_message)
+        await messages.save(assistant_message)
 
-        await messages.save(
-            assistant_message
-        )
-
-        return ChatResponse(
-            response=answer
-        )
+        return ChatResponse(response=answer)
 
     except Exception:
-        logger.exception(
-            "Agent request failed"
-        )
+        logger.exception("Agent request failed")
 
         raise HTTPException(
             status_code=500,
             detail="Agent request failed.",
-        )
-
+        ) from None
 @app.post("/chat/stream")
+
 async def stream_chat(
     request: ChatRequest,
     current_agent: AgentForge = Depends(get_agent),
@@ -404,9 +427,11 @@ async def stream_chat(
     messages: MessageRepository = Depends(
         get_message_repository
     ),
+    user_id: str = Depends(get_registered_user_id),
 ):
     conversation = await repository.get(
-        request.session_id
+        request.session_id,
+        user_id,
     )
 
     if conversation is None:
@@ -440,13 +465,8 @@ async def stream_chat(
                 content=answer,
             )
 
-            await messages.save(
-                user_message
-            )
-
-            await messages.save(
-                assistant_message
-            )
+            await messages.save(user_message)
+            await messages.save(assistant_message)
 
         except Exception:
             logger.exception(
@@ -457,4 +477,3 @@ async def stream_chat(
         generate(),
         media_type="text/plain",
     )
-
