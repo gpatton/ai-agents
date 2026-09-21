@@ -82,6 +82,15 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
+)
 
 class RenameConversationRequest(BaseModel):
     title: str = Field(
