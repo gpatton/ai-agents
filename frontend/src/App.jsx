@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   SignedIn,
   SignedOut,
@@ -66,6 +65,10 @@ function ConversationList() {
       setMessage(error.message);
     }
   }
+
+  useEffect(() => {
+    loadConversations();
+    }, []);
 
   async function createNewConversation() {
     setMessage("Creating conversation...");
