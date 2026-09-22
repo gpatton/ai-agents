@@ -135,7 +135,7 @@ function ConversationList() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [createNewConversation]);
+  }, []);
 
   async function deleteConversation(conversation) {
     const confirmed = window.confirm(
@@ -328,9 +328,13 @@ function ConversationList() {
         },
       ]);
     } catch (error) {
-      setMessage(
-        `Could not send message: ${error.message}`
-      );
+      setChatMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          content: `Sorry, I couldn't generate a reply. ${error.message}`,
+        },
+      ]);
     } finally {
       setSending(false);
     }
