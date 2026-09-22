@@ -1,5 +1,5 @@
+
 import { useEffect, useRef, useState } from "react";
-import "./App.css";
 import {
   SignedIn,
   SignedOut,
@@ -7,6 +7,7 @@ import {
   UserButton,
   useAuth,
 } from "@clerk/clerk-react";
+import "./App.css";
 
 const API_URL = "http://127.0.0.1:8000";
 
@@ -21,16 +22,9 @@ function ConversationList() {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  
-const messagesEndRef = useRef(null);
 
-useEffect(() => {
-  messagesEndRef.current?.scrollIntoView({
-    behavior: "smooth",
-    block: "end",
-  });
-}, [chatMessages]);
- 
+  const messagesEndRef = useRef(null);
+
   async function getApiToken() {
     const token = await getToken({
       template: "agentforge-api",
@@ -49,21 +43,17 @@ useEffect(() => {
     try {
       const token = await getApiToken();
 
-      const response = await fetch(
-        `${API_URL}/conversations`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await fetch(`${API_URL}/conversations`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       if (!response.ok) {
         throw new Error(`API returned HTTP ${response.status}.`);
       }
 
       const data = await response.json();
-
       setConversations(data);
 
       setMessage(
@@ -80,25 +70,33 @@ useEffect(() => {
     loadConversations();
   }, []);
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "end",
+    });
+  }, [chatMessages, sending]);
+
   async function createNewConversation() {
+    if (sending || loadingHistory) {
+      return;
+    }
+
     setMessage("Creating conversation...");
 
     try {
       const token = await getApiToken();
 
-      const response = await fetch(
-        `${API_URL}/conversations`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            title: "New conversation",
-          }),
-        }
-      );
+      const response = await fetch(`${API_URL}/conversations`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: "New AgentForge conversation",
+        }),
+      });
 
       if (!response.ok) {
         throw new Error(`API returned HTTP ${response.status}.`);
@@ -119,42 +117,25 @@ useEffect(() => {
       setMessage(error.message);
     }
   }
+
   useEffect(() => {
-  function handleKeyDown(event) {
-    if (
-      event.altKey &&
-      event.shiftKey &&
-      event.key.toLowerCase() === "n"
-    ) {
-      event.preventDefault();
-      createNewConversation();
+    function handleKeyDown(event) {
+      if (
+        event.altKey &&
+        event.shiftKey &&
+        event.key.toLowerCase() === "n"
+      ) {
+        event.preventDefault();
+        createNewConversation();
+      }
     }
-  }
 
-  window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
 
-  return () => {
-    window.removeEventListener("keydown", handleKeyDown);
-  };
-}, []);
-  useEffect(() => {
-  function handleKeyDown(event) {
-    if (
-      event.ctrlKey &&
-      event.shiftKey &&
-      event.key.toLowerCase() === "n"
-    ) {
-      event.preventDefault();
-      createNewConversation();
-    }
-  }
-
-  window.addEventListener("keydown", handleKeyDown);
-
-  return () => {
-    window.removeEventListener("keydown", handleKeyDown);
-  };
-}, []);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [createNewConversation]);
 
   async function deleteConversation(conversation) {
     const confirmed = window.confirm(
@@ -186,15 +167,11 @@ useEffect(() => {
         current.filter((item) => item.id !== conversation.id)
       );
 
-      setSelectedConversation((current) =>
-        current?.id === conversation.id ? null : current
-      );
-
-      setChatMessages((current) =>
-        selectedConversation?.id === conversation.id
-          ? []
-          : current
-      );
+      if (selectedConversation?.id === conversation.id) {
+        setSelectedConversation(null);
+        setChatMessages([]);
+        setInput("");
+      }
 
       setMessage("Conversation deleted successfully.");
     } catch (error) {
@@ -370,30 +347,33 @@ useEffect(() => {
 
         {" "}
 
-          <button
-  title="New conversation (Alt + Shift + N)"
-  onClick={createNewConversation}
-  disabled={sending || loadingHistory}
->
-  New conversation
-</button>
+        <button
+          title="New conversation (Alt + Shift + N)"
+          onClick={createNewConversation}
+          disabled={sending || loadingHistory}
+        >
+          New conversation
+        </button>
 
         <p>{message}</p>
 
         <ul>
           {conversations.map((conversation) => (
             <li key={conversation.id}>
-<button
-  className={
-    selectedConversation?.id === conversation.id
-      ? "conversation-title active"
-      : "conversation-title"
-  }
-  onClick={() => selectConversation(conversation)}
-  disabled={sending || loadingHistory}
->
-  {conversation.title}
-</button>
+              <button
+                className={
+                  selectedConversation?.id === conversation.id
+                    ? "conversation-title active"
+                    : "conversation-title"
+                }
+                onClick={() =>
+                  selectConversation(conversation)
+                }
+                disabled={sending || loadingHistory}
+              >
+                {conversation.title}
+              </button>
+
               {" "}
 
               <button
@@ -425,32 +405,39 @@ useEffect(() => {
           <>
             <h2>{selectedConversation.title}</h2>
 
-<div className="chat-messages">              
-{chatMessages.map((chatMessage, index) => (
-                  <p
-  key={chatMessage.id ?? index}
-  className={
-    chatMessage.role === "user"
-      ? "chat-message user-message"
-      : "chat-message assistant-message"
-  }
->
+            <div className="chat-messages">
+              {chatMessages.map((chatMessage, index) => (
+                <p
+                  key={chatMessage.id ?? index}
+                  className={
+                    chatMessage.role === "user"
+                      ? "chat-message user-message"
+                      : "chat-message assistant-message"
+                  }
+                >
                   <strong>
                     {chatMessage.role === "user"
                       ? "You"
                       : "AgentForge"}
                     :
-                  </strong>
-
-                  {" "}
-
+                  </strong>{" "}
                   {chatMessage.content}
                 </p>
               ))}
-<div ref={messagesEndRef} />
+
+              {sending && (
+                <p className="chat-message assistant-message">
+                  <strong>AgentForge:</strong> Thinking…
+                </p>
+              )}
+
+              <div ref={messagesEndRef} />
             </div>
 
-            <form onSubmit={sendMessage}>
+            <form
+              className="chat-form"
+              onSubmit={sendMessage}
+            >
               <input
                 className="chat-input"
                 type="text"
@@ -460,17 +447,17 @@ useEffect(() => {
                 }
                 placeholder="Ask AgentForge something..."
                 disabled={sending || loadingHistory}
-                style={{
-                }}
               />
-<button
-  type="button"
-  className="clear-input-button"
-  onClick={() => setInput("")}
-  disabled={!input || sending || loadingHistory}
->
-  Clear
-</button>
+
+              <button
+                type="button"
+                className="clear-input-button"
+                onClick={() => setInput("")}
+                disabled={!input || sending || loadingHistory}
+              >
+                Clear
+              </button>
+
               <button
                 type="submit"
                 disabled={
@@ -482,9 +469,10 @@ useEffect(() => {
                 {sending ? "Sending..." : "Send"}
               </button>
             </form>
+
             <p className="message-counter">
-  {input.length} characters
-</p>
+              {input.length} characters
+            </p>
           </>
         ) : (
           <p>
