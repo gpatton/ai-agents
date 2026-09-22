@@ -95,7 +95,7 @@ useEffect(() => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            title: "New AgentForge conversation",
+            title: "New conversation",
           }),
         }
       );
@@ -119,6 +119,42 @@ useEffect(() => {
       setMessage(error.message);
     }
   }
+  useEffect(() => {
+  function handleKeyDown(event) {
+    if (
+      event.altKey &&
+      event.shiftKey &&
+      event.key.toLowerCase() === "n"
+    ) {
+      event.preventDefault();
+      createNewConversation();
+    }
+  }
+
+  window.addEventListener("keydown", handleKeyDown);
+
+  return () => {
+    window.removeEventListener("keydown", handleKeyDown);
+  };
+}, []);
+  useEffect(() => {
+  function handleKeyDown(event) {
+    if (
+      event.ctrlKey &&
+      event.shiftKey &&
+      event.key.toLowerCase() === "n"
+    ) {
+      event.preventDefault();
+      createNewConversation();
+    }
+  }
+
+  window.addEventListener("keydown", handleKeyDown);
+
+  return () => {
+    window.removeEventListener("keydown", handleKeyDown);
+  };
+}, []);
 
   async function deleteConversation(conversation) {
     const confirmed = window.confirm(
@@ -338,7 +374,7 @@ useEffect(() => {
           onClick={createNewConversation}
           disabled={sending || loadingHistory}
         >
-          New conversation
+          New conversation (Alt + Shift + N)
         </button>
 
         <p>{message}</p>
