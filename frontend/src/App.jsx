@@ -1,5 +1,4 @@
-
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import {
   SignedIn,
@@ -22,7 +21,16 @@ function ConversationList() {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  
+const messagesEndRef = useRef(null);
 
+useEffect(() => {
+  messagesEndRef.current?.scrollIntoView({
+    behavior: "smooth",
+    block: "end",
+  });
+}, [chatMessages]);
+ 
   async function getApiToken() {
     const token = await getToken({
       template: "agentforge-api",
@@ -380,8 +388,8 @@ function ConversationList() {
           <>
             <h2>{selectedConversation.title}</h2>
 
-            <div>
-              {chatMessages.map((chatMessage, index) => (
+<div className="chat-messages">              
+{chatMessages.map((chatMessage, index) => (
                   <p
   key={chatMessage.id ?? index}
   className={
@@ -402,6 +410,7 @@ function ConversationList() {
                   {chatMessage.content}
                 </p>
               ))}
+<div ref={messagesEndRef} />
             </div>
 
             <form onSubmit={sendMessage}>
