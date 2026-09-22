@@ -510,20 +510,19 @@ function ConversationList() {
       <aside className="conversation-sidebar">
         <h2>My conversations</h2>
 
-        <button onClick={loadConversations}>
-          Load conversations
-        </button>
 
         {" "}
 
-        <button
-          title="New conversation (Alt + Shift + N)"
-          onClick={createNewConversation}
-          disabled={sending || loadingHistory}
-        >
-          New conversation
-        </button>
-
+<button
+  type="button"
+  className="new-conversation-button"
+  title="New conversation (Alt + Shift + N)"
+  onClick={createNewConversation}
+  disabled={sending || loadingHistory}
+>
+  <span aria-hidden="true">＋</span>
+  New conversation
+</button>
         <p>{message}</p>
 
         <ul>

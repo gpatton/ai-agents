@@ -227,3 +227,35 @@ button[type="submit"] {
 button[type="submit"]:hover:not(:disabled) {
   background: #1d4ed8;
 }
+
+.new-conversation-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 18px;
+  border: none;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.new-conversation-button:hover:not(:disabled) {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.new-conversation-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.new-conversation-button span {
+  font-size: 23px;
+  line-height: 1;
+}
