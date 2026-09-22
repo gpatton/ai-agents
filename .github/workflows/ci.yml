@@ -28,5 +28,7 @@ jobs:
           python -m pip install -r requirements.txt
 
       - name: Run tests
+        env:
+          CLERK_ISSUER: "https://clerk.example.test"
         run: |
           python -m pytest -v
