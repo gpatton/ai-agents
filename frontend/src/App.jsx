@@ -1,4 +1,6 @@
+
 import { useEffect, useState } from "react";
+import "./App.css";
 import {
   SignedIn,
   SignedOut,
@@ -68,7 +70,7 @@ function ConversationList() {
 
   useEffect(() => {
     loadConversations();
-    }, []);
+  }, []);
 
   async function createNewConversation() {
     setMessage("Creating conversation...");
@@ -110,102 +112,108 @@ function ConversationList() {
     }
   }
 
-async function deleteConversation(conversation) {
-  const confirmed = window.confirm(
-    `Permanently delete "${conversation.title}" and its messages?`
-  );
-
-  if (!confirmed) {
-    return;
-  }
-
-  try {
-    const token = await getApiToken();
-
-    const response = await fetch(
-      `${API_URL}/conversations/${conversation.id}`,
-      {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
+  async function deleteConversation(conversation) {
+    const confirmed = window.confirm(
+      `Permanently delete "${conversation.title}" and its messages?`
     );
 
-    if (!response.ok) {
-      throw new Error(`API returned HTTP ${response.status}.`);
+    if (!confirmed) {
+      return;
     }
 
-    setConversations((current) =>
-      current.filter((item) => item.id !== conversation.id)
-    );
+    try {
+      const token = await getApiToken();
 
-    setSelectedConversation((current) =>
-      current?.id === conversation.id ? null : current
-    );
+      const response = await fetch(
+        `${API_URL}/conversations/${conversation.id}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
-    setChatMessages((current) =>
-      selectedConversation?.id === conversation.id ? [] : current
-    );
-
-    setMessage("Conversation deleted successfully.");
-  } catch (error) {
-    setMessage(`Could not delete conversation: ${error.message}`);
-  }
-}
-
-async function renameConversation(conversation) {
-  const newTitle = window.prompt(
-    "Enter a new conversation title:",
-    conversation.title
-  );
-
-  if (newTitle === null || !newTitle.trim()) {
-    return;
-  }
-
-  try {
-    const token = await getApiToken();
-
-    const response = await fetch(
-      `${API_URL}/conversations/${conversation.id}`,
-      {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title: newTitle.trim(),
-        }),
+      if (!response.ok) {
+        throw new Error(`API returned HTTP ${response.status}.`);
       }
+
+      setConversations((current) =>
+        current.filter((item) => item.id !== conversation.id)
+      );
+
+      setSelectedConversation((current) =>
+        current?.id === conversation.id ? null : current
+      );
+
+      setChatMessages((current) =>
+        selectedConversation?.id === conversation.id
+          ? []
+          : current
+      );
+
+      setMessage("Conversation deleted successfully.");
+    } catch (error) {
+      setMessage(
+        `Could not delete conversation: ${error.message}`
+      );
+    }
+  }
+
+  async function renameConversation(conversation) {
+    const newTitle = window.prompt(
+      "Enter a new conversation title:",
+      conversation.title
     );
 
-    if (!response.ok) {
-      throw new Error(`API returned HTTP ${response.status}.`);
+    if (newTitle === null || !newTitle.trim()) {
+      return;
     }
 
-    const updatedConversation = await response.json();
+    try {
+      const token = await getApiToken();
 
-    setConversations((current) =>
-      current.map((item) =>
-        item.id === updatedConversation.id
+      const response = await fetch(
+        `${API_URL}/conversations/${conversation.id}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            title: newTitle.trim(),
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`API returned HTTP ${response.status}.`);
+      }
+
+      const updatedConversation = await response.json();
+
+      setConversations((current) =>
+        current.map((item) =>
+          item.id === updatedConversation.id
+            ? updatedConversation
+            : item
+        )
+      );
+
+      setSelectedConversation((current) =>
+        current?.id === updatedConversation.id
           ? updatedConversation
-          : item
-      )
-    );
+          : current
+      );
 
-    setSelectedConversation((current) =>
-      current?.id === updatedConversation.id
-        ? updatedConversation
-        : current
-    );
-
-    setMessage("Conversation renamed successfully!");
-  } catch (error) {
-    setMessage(`Could not rename conversation: ${error.message}`);
+      setMessage("Conversation renamed successfully!");
+    } catch (error) {
+      setMessage(
+        `Could not rename conversation: ${error.message}`
+      );
+    }
   }
-}
 
   async function selectConversation(conversation) {
     setSelectedConversation(conversation);
@@ -235,7 +243,9 @@ async function renameConversation(conversation) {
       setChatMessages(data.messages);
       setMessage("");
     } catch (error) {
-      setMessage(`Could not load messages: ${error.message}`);
+      setMessage(
+        `Could not load messages: ${error.message}`
+      );
     } finally {
       setLoadingHistory(false);
     }
@@ -297,108 +307,128 @@ async function renameConversation(conversation) {
         },
       ]);
     } catch (error) {
-      setMessage(`Could not send message: ${error.message}`);
+      setMessage(
+        `Could not send message: ${error.message}`
+      );
     } finally {
       setSending(false);
     }
   }
 
   return (
-    <section>
-      <h2>My conversations</h2>
+    <section className="agentforge-layout">
+      <aside className="conversation-sidebar">
+        <h2>My conversations</h2>
 
-      <button onClick={loadConversations}>
-        Load conversations
-      </button>
+        <button onClick={loadConversations}>
+          Load conversations
+        </button>
 
-      {" "}
+        {" "}
 
-      <button onClick={createNewConversation}>
-        New conversation
-      </button>
+        <button
+          onClick={createNewConversation}
+          disabled={sending || loadingHistory}
+        >
+          New conversation
+        </button>
 
-      <p>{message}</p>
+        <p>{message}</p>
 
-<ul>
-  {conversations.map((conversation) => (
-    <li key={conversation.id}>
-      <button
-        onClick={() => selectConversation(conversation)}
-        disabled={sending || loadingHistory}
-      >
-        {conversation.title}
-      </button>
+        <ul>
+          {conversations.map((conversation) => (
+            <li key={conversation.id}>
+              <button
+                onClick={() =>
+                  selectConversation(conversation)
+                }
+                disabled={sending || loadingHistory}
+              >
+                {conversation.title}
+              </button>
 
-      {" "}
+              {" "}
 
-      <button
-        onClick={() => renameConversation(conversation)}
-        disabled={sending || loadingHistory}
-      >
-        Rename
-      </button>
-      {" "}
+              <button
+                onClick={() =>
+                  renameConversation(conversation)
+                }
+                disabled={sending || loadingHistory}
+              >
+                Rename
+              </button>
 
-     <button
-      onClick={() => deleteConversation(conversation)}
-      disabled={sending || loadingHistory}
-       >
-      Delete
-      </button>
-    </li>
-  ))}
-</ul>
-      {selectedConversation && (
-        <section>
-          <hr />
+              {" "}
 
-          <h2>{selectedConversation.title}</h2>
+              <button
+                onClick={() =>
+                  deleteConversation(conversation)
+                }
+                disabled={sending || loadingHistory}
+              >
+                Delete
+              </button>
+            </li>
+          ))}
+        </ul>
+      </aside>
 
-          <div>
-            {chatMessages.map((chatMessage, index) => (
-              <p key={chatMessage.id ?? index}>
-                <strong>
-                  {chatMessage.role === "user"
-                    ? "You"
-                    : "AgentForge"}
-                  :
-                </strong>
+      <section className="chat-panel">
+        {selectedConversation ? (
+          <>
+            <h2>{selectedConversation.title}</h2>
 
-                {" "}
+            <div>
+              {chatMessages.map((chatMessage, index) => (
+                <p key={chatMessage.id ?? index}>
+                  <strong>
+                    {chatMessage.role === "user"
+                      ? "You"
+                      : "AgentForge"}
+                    :
+                  </strong>
 
-                {chatMessage.content}
-              </p>
-            ))}
-          </div>
+                  {" "}
 
-          <form onSubmit={sendMessage}>
-            <input
-              type="text"
-              value={input}
-              onChange={(event) =>
-                setInput(event.target.value)
-              }
-              placeholder="Ask AgentForge something..."
-              disabled={sending || loadingHistory}
-              style={{
-                width: "300px",
-                padding: "8px",
-              }}
-            />
+                  {chatMessage.content}
+                </p>
+              ))}
+            </div>
 
-            <button
-              type="submit"
-              disabled={
-                sending ||
-                loadingHistory ||
-                !input.trim()
-              }
-            >
-              {sending ? "Sending..." : "Send"}
-            </button>
-          </form>
-        </section>
-      )}
+            <form onSubmit={sendMessage}>
+              <input
+                type="text"
+                value={input}
+                onChange={(event) =>
+                  setInput(event.target.value)
+                }
+                placeholder="Ask AgentForge something..."
+                disabled={sending || loadingHistory}
+                style={{
+                  width: "300px",
+                  padding: "8px",
+                }}
+              />
+
+              <button
+                type="submit"
+                disabled={
+                  sending ||
+                  loadingHistory ||
+                  !input.trim()
+                }
+              >
+                {sending ? "Sending..." : "Send"}
+              </button>
+            </form>
+          </>
+        ) : (
+          <p>
+            Select a conversation or create a new one
+            to start chatting.
+          </p>
+        )}
+      </section>
     </section>
   );
 }
