@@ -173,3 +173,21 @@ button:disabled {
     padding: 12px;
   }
 }
+.conversation-sidebar ul {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+.conversation-sidebar li > button:not(.conversation-title) {
+  padding: 5px 9px;
+  margin: 2px 4px 8px 0;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: white;
+  color: #374151;
+  font-size: 12px;
+}
+
+.conversation-sidebar li > button:not(.conversation-title):hover:not(:disabled) {
+  background: #f3f4f6;
+}
