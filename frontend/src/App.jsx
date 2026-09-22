@@ -338,15 +338,17 @@ function ConversationList() {
         <ul>
           {conversations.map((conversation) => (
             <li key={conversation.id}>
-              <button
-                onClick={() =>
-                  selectConversation(conversation)
-                }
-                disabled={sending || loadingHistory}
-              >
-                {conversation.title}
-              </button>
-
+<button
+  className={
+    selectedConversation?.id === conversation.id
+      ? "conversation-title active"
+      : "conversation-title"
+  }
+  onClick={() => selectConversation(conversation)}
+  disabled={sending || loadingHistory}
+>
+  {conversation.title}
+</button>
               {" "}
 
               <button
@@ -380,7 +382,14 @@ function ConversationList() {
 
             <div>
               {chatMessages.map((chatMessage, index) => (
-                <p key={chatMessage.id ?? index}>
+                  <p
+  key={chatMessage.id ?? index}
+  className={
+    chatMessage.role === "user"
+      ? "chat-message user-message"
+      : "chat-message assistant-message"
+  }
+>
                   <strong>
                     {chatMessage.role === "user"
                       ? "You"
@@ -397,6 +406,7 @@ function ConversationList() {
 
             <form onSubmit={sendMessage}>
               <input
+                className="chat-input"
                 type="text"
                 value={input}
                 onChange={(event) =>
@@ -405,8 +415,6 @@ function ConversationList() {
                 placeholder="Ask AgentForge something..."
                 disabled={sending || loadingHistory}
                 style={{
-                  width: "300px",
-                  padding: "8px",
                 }}
               />
 
