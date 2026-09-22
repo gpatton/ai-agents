@@ -426,7 +426,14 @@ useEffect(() => {
                 style={{
                 }}
               />
-
+<button
+  type="button"
+  className="clear-input-button"
+  onClick={() => setInput("")}
+  disabled={!input || sending || loadingHistory}
+>
+  Clear
+</button>
               <button
                 type="submit"
                 disabled={

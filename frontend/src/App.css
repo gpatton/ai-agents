@@ -197,3 +197,33 @@ button:disabled {
   font-size: 12px;
   text-align: right;
 }
+.clear-input-button {
+  background: #e5e7eb;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.clear-input-button:hover:not(:disabled) {
+  background: #d1d5db;
+}
+button.clear-input-button {
+  background: #e5e7eb;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+button.clear-input-button:hover:not(:disabled) {
+  background: #d1d5db;
+}
+
+button[type="submit"] {
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 20px;
+}
+
+button[type="submit"]:hover:not(:disabled) {
+  background: #1d4ed8;
+}
