@@ -370,12 +370,13 @@ useEffect(() => {
 
         {" "}
 
-        <button
-          onClick={createNewConversation}
-          disabled={sending || loadingHistory}
-        >
-          New conversation (Alt + Shift + N)
-        </button>
+          <button
+  title="New conversation (Alt + Shift + N)"
+  onClick={createNewConversation}
+  disabled={sending || loadingHistory}
+>
+  New conversation
+</button>
 
         <p>{message}</p>
 
