@@ -110,6 +110,59 @@ function ConversationList() {
     }
   }
 
+async function renameConversation(conversation) {
+  const newTitle = window.prompt(
+    "Enter a new conversation title:",
+    conversation.title
+  );
+
+  if (newTitle === null || !newTitle.trim()) {
+    return;
+  }
+
+  try {
+    const token = await getApiToken();
+
+    const response = await fetch(
+      `${API_URL}/conversations/${conversation.id}`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: newTitle.trim(),
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API returned HTTP ${response.status}.`);
+    }
+
+    const updatedConversation = await response.json();
+
+    setConversations((current) =>
+      current.map((item) =>
+        item.id === updatedConversation.id
+          ? updatedConversation
+          : item
+      )
+    );
+
+    setSelectedConversation((current) =>
+      current?.id === updatedConversation.id
+        ? updatedConversation
+        : current
+    );
+
+    setMessage("Conversation renamed successfully!");
+  } catch (error) {
+    setMessage(`Could not rename conversation: ${error.message}`);
+  }
+}
+
   async function selectConversation(conversation) {
     setSelectedConversation(conversation);
     setChatMessages([]);
@@ -222,19 +275,27 @@ function ConversationList() {
 
       <p>{message}</p>
 
-      <ul>
-        {conversations.map((conversation) => (
-          <li key={conversation.id}>
-            <button
-              onClick={() => selectConversation(conversation)}
-              disabled={sending || loadingHistory}
-            >
-              {conversation.title}
-            </button>
-          </li>
-        ))}
-      </ul>
+<ul>
+  {conversations.map((conversation) => (
+    <li key={conversation.id}>
+      <button
+        onClick={() => selectConversation(conversation)}
+        disabled={sending || loadingHistory}
+      >
+        {conversation.title}
+      </button>
 
+      {" "}
+
+      <button
+        onClick={() => renameConversation(conversation)}
+        disabled={sending || loadingHistory}
+      >
+        Rename
+      </button>
+    </li>
+  ))}
+</ul>
       {selectedConversation && (
         <section>
           <hr />
