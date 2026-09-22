@@ -24,6 +24,8 @@ function ConversationList() {
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   const messagesEndRef = useRef(null);
+  const requestInProgressRef = useRef(false);
+  const abortControllerRef = useRef(null);
 
   async function getApiToken() {
     const token = await getToken({
@@ -78,7 +80,7 @@ function ConversationList() {
   }, [chatMessages, sending]);
 
   async function createNewConversation() {
-    if (sending || loadingHistory) {
+    if (requestInProgressRef.current || loadingHistory) {
       return;
     }
 
@@ -138,6 +140,10 @@ function ConversationList() {
   }, []);
 
   async function deleteConversation(conversation) {
+    if (sending || loadingHistory) {
+      return;
+    }
+
     const confirmed = window.confirm(
       `Permanently delete "${conversation.title}" and its messages?`
     );
@@ -182,6 +188,10 @@ function ConversationList() {
   }
 
   async function renameConversation(conversation) {
+    if (sending || loadingHistory) {
+      return;
+    }
+
     const newTitle = window.prompt(
       "Enter a new conversation title:",
       conversation.title
@@ -237,6 +247,10 @@ function ConversationList() {
   }
 
   async function selectConversation(conversation) {
+    if (sending || loadingHistory) {
+      return;
+    }
+
     setSelectedConversation(conversation);
     setChatMessages([]);
     setInput("");
@@ -272,38 +286,55 @@ function ConversationList() {
     }
   }
 
-  async function sendMessage(event) {
-    event.preventDefault();
-
-    if (
-      !selectedConversation ||
-      !input.trim() ||
-      sending ||
-      loadingHistory
-    ) {
+  async function requestReply({
+    userText,
+    conversationId,
+    retryIndex = null,
+  }) {
+    if (requestInProgressRef.current || loadingHistory) {
       return;
     }
 
-    const conversationId = selectedConversation.id;
-    const userText = input.trim();
+    const controller = new AbortController();
+
+    abortControllerRef.current = controller;
+    requestInProgressRef.current = true;
 
     setSending(true);
     setMessage("");
-    setInput("");
 
-    setChatMessages((current) => [
-      ...current,
-      {
-        role: "user",
-        content: userText,
-      },
-    ]);
+    if (retryIndex === null) {
+      setChatMessages((current) => [
+        ...current,
+        {
+          role: "user",
+          content: userText,
+        },
+      ]);
+    } else {
+      setChatMessages((current) =>
+        current.map((item, index) =>
+          index === retryIndex
+            ? {
+                ...item,
+                content: "Retrying your message...",
+                failed: false,
+              }
+            : item
+        )
+      );
+    }
 
     try {
       const token = await getApiToken();
 
+      if (controller.signal.aborted) {
+        return;
+      }
+
       const response = await fetch(`${API_URL}/chat`, {
         method: "POST",
+        signal: controller.signal,
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -320,24 +351,158 @@ function ConversationList() {
 
       const data = await response.json();
 
-      setChatMessages((current) => [
-        ...current,
-        {
-          role: "assistant",
-          content: data.response,
-        },
-      ]);
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      if (retryIndex === null) {
+        setChatMessages((current) => [
+          ...current,
+          {
+            role: "assistant",
+            content: data.response,
+          },
+        ]);
+      } else {
+        setChatMessages((current) =>
+          current.map((item, index) =>
+            index === retryIndex
+              ? {
+                  role: "assistant",
+                  content: data.response,
+                }
+              : item
+          )
+        );
+      }
     } catch (error) {
-      setChatMessages((current) => [
-        ...current,
-        {
-          role: "assistant",
-          content: `Sorry, I couldn't generate a reply. ${error.message}`,
-        },
-      ]);
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      const failedReply = {
+        role: "assistant",
+        content: `Sorry, I couldn't generate a reply. ${error.message}`,
+        failed: true,
+        retryText: userText,
+        retryConversationId: conversationId,
+      };
+
+      if (retryIndex === null) {
+        setChatMessages((current) => [
+          ...current,
+          failedReply,
+        ]);
+      } else {
+        setChatMessages((current) =>
+          current.map((item, index) =>
+            index === retryIndex ? failedReply : item
+          )
+        );
+      }
     } finally {
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
+
+      requestInProgressRef.current = false;
       setSending(false);
     }
+  }
+
+  async function sendMessage(event) {
+    event.preventDefault();
+
+    if (
+      !selectedConversation ||
+      !input.trim() ||
+      requestInProgressRef.current ||
+      loadingHistory
+    ) {
+      return;
+    }
+
+    const userText = input.trim();
+    const conversationId = selectedConversation.id;
+
+    setInput("");
+
+    await requestReply({
+      userText,
+      conversationId,
+    });
+  }
+
+  function stopGenerating() {
+    const controller = abortControllerRef.current;
+
+    if (!controller || controller.signal.aborted) {
+      return;
+    }
+
+    controller.abort();
+
+    setChatMessages((current) => {
+      const updated = [...current];
+
+      const retryingIndex = updated.findIndex(
+        (item) => item.content === "Retrying your message..."
+      );
+
+      if (retryingIndex !== -1) {
+        const retryingMessage = updated[retryingIndex];
+
+        updated[retryingIndex] = {
+          ...retryingMessage,
+          content: "Request stopped.",
+          failed: true,
+        };
+
+        return updated;
+      }
+
+      const lastUserMessage = [...updated]
+        .reverse()
+        .find((item) => item.role === "user");
+
+      updated.push({
+        role: "assistant",
+        content: "Request stopped.",
+        failed: true,
+        retryText: lastUserMessage?.content ?? "",
+        retryConversationId: selectedConversation?.id,
+      });
+
+      return updated;
+    });
+  }
+
+  async function retryMessage(chatMessage, index) {
+    if (
+      !chatMessage.failed ||
+      !chatMessage.retryText ||
+      !selectedConversation ||
+      chatMessage.retryConversationId !== selectedConversation.id ||
+      requestInProgressRef.current ||
+      loadingHistory
+    ) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Retry this message? If the previous request reached the server, " +
+        "retrying may save a duplicate message."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    await requestReply({
+      userText: chatMessage.retryText,
+      conversationId: chatMessage.retryConversationId,
+      retryIndex: index,
+    });
   }
 
   return (
@@ -426,6 +591,22 @@ function ConversationList() {
                     :
                   </strong>{" "}
                   {chatMessage.content}
+
+                  {chatMessage.failed && (
+                    <>
+                      {" "}
+                      <button
+                        type="button"
+                        className="retry-button"
+                        onClick={() =>
+                          retryMessage(chatMessage, index)
+                        }
+                        disabled={sending || loadingHistory}
+                      >
+                        Retry
+                      </button>
+                    </>
+                  )}
                 </p>
               ))}
 
@@ -462,16 +643,21 @@ function ConversationList() {
                 Clear
               </button>
 
-              <button
-                type="submit"
-                disabled={
-                  sending ||
-                  loadingHistory ||
-                  !input.trim()
-                }
-              >
-                {sending ? "Sending..." : "Send"}
-              </button>
+              {sending ? (
+                <button
+                  type="button"
+                  onClick={stopGenerating}
+                >
+                  Stop generating
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={loadingHistory || !input.trim()}
+                >
+                  Send
+                </button>
+              )}
             </form>
 
             <p className="message-counter">
