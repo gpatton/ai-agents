@@ -110,6 +110,50 @@ function ConversationList() {
     }
   }
 
+async function deleteConversation(conversation) {
+  const confirmed = window.confirm(
+    `Permanently delete "${conversation.title}" and its messages?`
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    const token = await getApiToken();
+
+    const response = await fetch(
+      `${API_URL}/conversations/${conversation.id}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API returned HTTP ${response.status}.`);
+    }
+
+    setConversations((current) =>
+      current.filter((item) => item.id !== conversation.id)
+    );
+
+    setSelectedConversation((current) =>
+      current?.id === conversation.id ? null : current
+    );
+
+    setChatMessages((current) =>
+      selectedConversation?.id === conversation.id ? [] : current
+    );
+
+    setMessage("Conversation deleted successfully.");
+  } catch (error) {
+    setMessage(`Could not delete conversation: ${error.message}`);
+  }
+}
+
 async function renameConversation(conversation) {
   const newTitle = window.prompt(
     "Enter a new conversation title:",
@@ -292,6 +336,14 @@ async function renameConversation(conversation) {
         disabled={sending || loadingHistory}
       >
         Rename
+      </button>
+      {" "}
+
+     <button
+      onClick={() => deleteConversation(conversation)}
+      disabled={sending || loadingHistory}
+       >
+      Delete
       </button>
     </li>
   ))}
