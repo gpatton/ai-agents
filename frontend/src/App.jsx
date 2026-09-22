@@ -438,6 +438,9 @@ useEffect(() => {
                 {sending ? "Sending..." : "Send"}
               </button>
             </form>
+            <p className="message-counter">
+  {input.length} characters
+</p>
           </>
         ) : (
           <p>

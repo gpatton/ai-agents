@@ -191,3 +191,9 @@ button:disabled {
 .conversation-sidebar li > button:not(.conversation-title):hover:not(:disabled) {
   background: #f3f4f6;
 }
+.message-counter {
+  margin: 6px 2px 0;
+  color: #6b7280;
+  font-size: 12px;
+  text-align: right;
+}
