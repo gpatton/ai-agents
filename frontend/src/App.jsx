@@ -626,9 +626,14 @@ function ConversationList() {
                   {toolEvents.map((event, index) => (
                     <li key={`${event.run_id ?? "tool"}-${event.type}-${index}`}>
                       <strong>{event.tool ?? "Unknown tool"}</strong>{" — "}
-                      {event.type === "tool_start" ? "Started" :
-                        event.type === "tool_end" ? "Completed" : "Error"}
-                      {event.type === "tool_error" && event.error && (
+                      {event.type === "tool_start"
+  ? "Started"
+  : event.type === "tool_error" ||
+      (event.type === "tool_end" &&
+        String(event.output ?? "").includes("status='error'"))
+    ? "Error"
+    : "Completed"}
+                       {event.type === "tool_error" && event.error && (
                         <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
                           {event.error}
                         </pre>
