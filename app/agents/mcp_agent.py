@@ -1,16 +1,18 @@
 import logging
 import uuid
+from collections.abc import AsyncIterator
 
 from langchain.mcp import MCPAdapter
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.prebuilt import create_react_agent
-from collections.abc import AsyncIterator
+
 from app.config import settings
 from app.tool_logging import ToolLoggingCallback
 from app.tools.calculator import calculator
 from app.tools.datetime_tool import get_current_datetime
 from app.tools.document_search import search_documents
+from app.tools.web_search import search_public_web
 
 
 logger = logging.getLogger(__name__)
@@ -76,6 +78,7 @@ class AgentForge:
             calculator,
             get_current_datetime,
             search_documents,
+            search_public_web,
             *mcp_tools,
         ]
 
@@ -91,6 +94,8 @@ class AgentForge:
             prompt=(
                 "You are AgentForge, a helpful AI assistant. "
                 "Use the available tools when necessary. "
+                "For current public events, news, or schedules, use "
+                "search_public_web. "
                 "For questions about employees, use the "
                 "employee_directory tool. "
                 "For questions about company policies, benefits, "
@@ -98,7 +103,8 @@ class AgentForge:
                 "search_documents tool. "
                 "Use the calculator tool for arithmetic when appropriate. "
                 "Use the datetime tool for current date and time questions. "
-                "Do not invent employee or company information. "
+                "Do not invent employee, company, or current public "
+                "information. "
                 "If a tool reports an error, explain the problem clearly "
                 "instead of inventing a result."
             ),
@@ -153,6 +159,7 @@ class AgentForge:
         )
 
         return result["messages"][-1].content
+
     async def stream(
         self,
         user_message: str,
@@ -209,7 +216,6 @@ class AgentForge:
             request_id,
             session_id,
         )
-
 
     async def delete_conversation(
         self,
