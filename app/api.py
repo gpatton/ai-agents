@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 import logging
+import json
 from app.database import Database
 from app.auth import get_current_user_id
 from dotenv import load_dotenv
@@ -491,4 +492,161 @@ async def stream_chat(
     return StreamingResponse(
         generate(),
         media_type="text/plain",
+    )
+
+@app.post("/chat/events")
+async def stream_chat_events(
+    request: ChatRequest,
+    current_agent: AgentForge = Depends(get_agent),
+    repository: ConversationRepository = Depends(
+        get_conversation_repository
+    ),
+    messages: MessageRepository = Depends(
+        get_message_repository
+    ),
+    user_id: str = Depends(get_registered_user_id),
+):
+    conversation = await repository.get(
+        request.session_id,
+        user_id,
+    )
+
+    if conversation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Conversation not found.",
+        )
+
+    def encode_event(event: dict) -> str:
+        return json.dumps(event, ensure_ascii=False) + "\n"
+
+    async def generate():
+        response_parts = []
+        tool_events = asyncio.Queue()
+
+        def on_tool_event(event: dict) -> None:
+            tool_events.put_nowait(event)
+
+        stream = current_agent.stream(
+            request.message,
+            request.session_id,
+            on_tool_event=on_tool_event,
+        )
+
+        next_chunk = None
+
+        try:
+            next_chunk = asyncio.create_task(anext(stream))
+
+            while True:
+                next_tool_event = asyncio.create_task(
+                    tool_events.get()
+                )
+
+                done, pending = await asyncio.wait(
+                    {next_chunk, next_tool_event},
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+
+                if next_tool_event in done:
+                    yield encode_event(
+                        next_tool_event.result()
+                    )
+
+                if next_chunk in done:
+                    try:
+                        chunk = next_chunk.result()
+                    except StopAsyncIteration:
+                        if next_tool_event not in done:
+                            next_tool_event.cancel()
+                            await asyncio.gather(
+                                next_tool_event,
+                                return_exceptions=True,
+                            )
+                        break
+
+                    response_parts.append(chunk)
+
+                    yield encode_event(
+                        {
+                            "type": "text",
+                            "content": chunk,
+                        }
+                    )
+
+                    next_chunk = asyncio.create_task(
+                        anext(stream)
+                    )
+
+                if next_tool_event not in done:
+                    next_tool_event.cancel()
+                    await asyncio.gather(
+                        next_tool_event,
+                        return_exceptions=True,
+                    )
+
+            while not tool_events.empty():
+                yield encode_event(
+                    tool_events.get_nowait()
+                )
+
+            answer = "".join(response_parts)
+
+            user_message = create_message(
+                conversation_id=request.session_id,
+                role="user",
+                content=request.message,
+            )
+
+            assistant_message = create_message(
+                conversation_id=request.session_id,
+                role="assistant",
+                content=answer,
+            )
+
+            await messages.save(user_message)
+            await messages.save(assistant_message)
+
+            yield encode_event(
+                {
+                    "type": "done",
+                }
+            )
+
+        except asyncio.CancelledError:
+            logger.info(
+                "Agent event stream cancelled | session_id=%s",
+                request.session_id,
+            )
+            raise
+
+        except Exception:
+            logger.exception(
+                "Agent event stream failed"
+            )
+
+            yield encode_event(
+                {
+                    "type": "error",
+                    "message": "Agent request failed.",
+                }
+            )
+
+        finally:
+            if next_chunk is not None and not next_chunk.done():
+                next_chunk.cancel()
+                await asyncio.gather(
+                    next_chunk,
+                    return_exceptions=True,
+                )
+
+            await stream.aclose()
+
+    return StreamingResponse(
+        generate(),
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Content-Type-Options": "nosniff",
+        },
     )

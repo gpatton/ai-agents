@@ -1,6 +1,7 @@
 import logging
 import uuid
 from collections.abc import AsyncIterator
+from typing import Any, Callable
 
 from langchain.mcp import MCPAdapter
 from langchain_core.messages import AIMessage
@@ -165,8 +166,9 @@ class AgentForge:
         self,
         user_message: str,
         session_id: str,
+        on_tool_event: Callable[[dict[str, Any]], None] | None = None,
     ) -> AsyncIterator[str]:
-        """Stream assistant text from AgentForge."""
+        """Stream assistant text and optionally report tool events."""
 
         if self.agent is None:
             raise RuntimeError(
@@ -197,7 +199,10 @@ class AgentForge:
                     "thread_id": session_id,
                 },
                 "callbacks": [
-                    ToolLoggingCallback(request_id),
+                    ToolLoggingCallback(
+                        request_id,
+                        on_event=on_tool_event,
+                    ),
                 ],
             },
             stream_mode="messages",

@@ -26,6 +26,9 @@ function ConversationList() {
   const messagesEndRef = useRef(null);
   const requestInProgressRef = useRef(false);
   const abortControllerRef = useRef(null);
+  const activeReplyRef = useRef(null);
+  const [toolEvents, setToolEvents] = useState([]);
+  const [requestId, setRequestId] = useState("");
 
   async function getApiToken() {
     const token = await getToken({
@@ -253,6 +256,8 @@ function ConversationList() {
 
     setSelectedConversation(conversation);
     setChatMessages([]);
+    setToolEvents([]);
+    setRequestId("");
     setInput("");
     setLoadingHistory(true);
     setMessage("Loading conversation history...");
@@ -296,11 +301,16 @@ function ConversationList() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
     requestInProgressRef.current = true;
+    activeReplyRef.current = {
+      retryIndex,
+      userText,
+      conversationId,
+    };
     setSending(true);
     setMessage("");
+    setToolEvents([]);
+    setRequestId("");
 
-    // The last message is the in-progress reply for new requests.
-    // A retry reuses its existing failed reply instead.
     if (retryIndex === null) {
       setChatMessages((current) => [
         ...current,
@@ -310,14 +320,14 @@ function ConversationList() {
     } else {
       setChatMessages((current) =>
         current.map((item, index) =>
-          index === retryIndex
-            ? { role: "assistant", content: "" }
-            : item
+          index === retryIndex ? { role: "assistant", content: "" } : item
         )
       );
     }
 
     let streamedText = "";
+    let completed = false;
+    let buffer = "";
 
     function updateReply(reply) {
       if (controller.signal.aborted) return;
@@ -330,11 +340,30 @@ function ConversationList() {
       });
     }
 
+    function processLine(line) {
+      if (!line.trim()) return;
+      const event = JSON.parse(line);
+      if (controller.signal.aborted) return;
+
+      if (event.request_id) setRequestId(event.request_id);
+
+      if (event.type === "text") {
+        streamedText += event.content ?? "";
+        updateReply({ role: "assistant", content: streamedText });
+      } else if (["tool_start", "tool_end", "tool_error"].includes(event.type)) {
+        setToolEvents((current) => [...current, event]);
+      } else if (event.type === "done") {
+        completed = true;
+      } else if (event.type === "error") {
+        throw new Error(event.message || "Agent request failed.");
+      }
+    }
+
     try {
       const token = await getApiToken();
       if (controller.signal.aborted) return;
 
-      const response = await fetch(`${API_URL}/chat/stream`, {
+      const response = await fetch(`${API_URL}/chat/events`, {
         method: "POST",
         signal: controller.signal,
         headers: {
@@ -356,18 +385,23 @@ function ConversationList() {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+
       while (true) {
         const { done, value } = await reader.read();
         if (controller.signal.aborted) return;
         if (done) break;
-        streamedText += decoder.decode(value, { stream: true });
-        updateReply({ role: "assistant", content: streamedText });
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) processLine(line);
       }
-      streamedText += decoder.decode();
+
+      buffer += decoder.decode();
       if (controller.signal.aborted) return;
-      if (!streamedText.trim()) {
-        throw new Error("The agent returned an empty response.");
-      }
+      if (buffer.trim()) processLine(buffer);
+      if (!completed) throw new Error("The event stream ended before completion.");
+      if (!streamedText.trim()) throw new Error("The agent returned an empty response.");
       updateReply({ role: "assistant", content: streamedText });
     } catch (error) {
       if (controller.signal.aborted) return;
@@ -383,6 +417,7 @@ function ConversationList() {
     } finally {
       if (abortControllerRef.current === controller) {
         abortControllerRef.current = null;
+        activeReplyRef.current = null;
       }
       requestInProgressRef.current = false;
       setSending(false);
@@ -414,19 +449,18 @@ function ConversationList() {
 
   function stopGenerating() {
     const controller = abortControllerRef.current;
-    if (!controller || controller.signal.aborted) return;
+    const active = activeReplyRef.current;
+    if (!controller || controller.signal.aborted || !active) return;
 
     controller.abort();
     setChatMessages((current) => {
       if (!current.length) return current;
       const updated = [...current];
-      const replyIndex = updated.length - 1;
+      const replyIndex = active.retryIndex === null
+        ? updated.length - 1
+        : active.retryIndex;
       const reply = updated[replyIndex];
-      if (reply.role !== "assistant") return current;
-
-      const lastUserMessage = [...updated]
-        .reverse()
-        .find((item) => item.role === "user");
+      if (!reply || reply.role !== "assistant") return current;
 
       updated[replyIndex] = {
         role: "assistant",
@@ -434,8 +468,8 @@ function ConversationList() {
           ? `${reply.content}\n\n[Request stopped — partial response]`
           : "Request stopped.",
         failed: true,
-        retryText: lastUserMessage?.content ?? "",
-        retryConversationId: selectedConversation?.id,
+        retryText: active.userText,
+        retryConversationId: active.conversationId,
       };
       return updated;
     });
@@ -581,6 +615,43 @@ function ConversationList() {
 
               <div ref={messagesEndRef} />
             </div>
+
+            <section aria-label="Tool activity" style={{ marginTop: "16px", marginBottom: "16px" }}>
+              <h3>Tool activity</h3>
+              {requestId && <p>Request ID: <code>{requestId}</code></p>}
+              {toolEvents.length === 0 ? (
+                <p>No tool calls recorded for this request.</p>
+              ) : (
+                <ol>
+                  {toolEvents.map((event, index) => (
+                    <li key={`${event.run_id ?? "tool"}-${event.type}-${index}`}>
+                      <strong>{event.tool ?? "Unknown tool"}</strong>{" — "}
+                      {event.type === "tool_start" ? "Started" :
+                        event.type === "tool_end" ? "Completed" : "Error"}
+                      {event.type === "tool_error" && event.error && (
+                        <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                          {event.error}
+                        </pre>
+                      )}
+                      {event.type === "tool_start" && event.input && (
+                        <details><summary>Input</summary>
+                          <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                            {event.input}
+                          </pre>
+                        </details>
+                      )}
+                      {event.type === "tool_end" && event.output && (
+                        <details><summary>Result</summary>
+                          <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                            {event.output}
+                          </pre>
+                        </details>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
 
             <form
               className="chat-form"
