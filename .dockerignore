@@ -8,3 +8,8 @@ __pycache__
 .pytest_cache
 logs
 chroma_db
+# Local backups and database files
+backups/
+*.sqlite3
+*.db
+*.bak
