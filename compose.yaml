@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: agentforge
       POSTGRES_PASSWORD: agentforge
     ports:
-      - "55433:5432"
+      - "127.0.0.1:55433:5432"
     volumes:
       - agentforge_postgres:/var/lib/postgresql/data
 
@@ -23,7 +23,7 @@ services:
     environment:
       DATABASE_URL: postgresql://agentforge:agentforge@postgres:5432/agentforge
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
 
     healthcheck:
       test:
