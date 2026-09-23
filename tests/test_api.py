@@ -1,4 +1,4 @@
-
+from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 
 from app.api import (
@@ -191,16 +191,40 @@ def test_health():
 
 
 def test_ready():
-    client = TestClient(app)
+    connection = MagicMock()
+    connection.execute = AsyncMock()
 
-    response = client.get("/ready")
+    connection_context = MagicMock()
+    connection_context.__aenter__ = AsyncMock(return_value=connection)
+    connection_context.__aexit__ = AsyncMock(return_value=None)
+
+    with patch("app.api.database.pool.connection", return_value=connection_context):
+        client = TestClient(app)
+        response = client.get("/ready")
 
     assert response.status_code == 200
     assert response.json() == {
         "status": "ready",
         "service": "AgentForge",
     }
+    connection.execute.assert_awaited_once_with("SELECT 1")
 
+
+def test_ready_returns_503_when_database_unavailable():
+    connection_context = MagicMock()
+    connection_context.__aenter__ = AsyncMock(
+        side_effect=ConnectionError("Database unavailable")
+    )
+    connection_context.__aexit__ = AsyncMock(return_value=None)
+
+    with patch("app.api.database.pool.connection", return_value=connection_context):
+        client = TestClient(app)
+        response = client.get("/ready")
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": "AgentForge database is not ready.",
+    }
 
 def test_chat():
     client = TestClient(app)
