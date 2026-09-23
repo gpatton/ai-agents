@@ -291,48 +291,50 @@ function ConversationList() {
     conversationId,
     retryIndex = null,
   }) {
-    if (requestInProgressRef.current || loadingHistory) {
-      return;
-    }
+    if (requestInProgressRef.current || loadingHistory) return;
 
     const controller = new AbortController();
-
     abortControllerRef.current = controller;
     requestInProgressRef.current = true;
-
     setSending(true);
     setMessage("");
 
+    // The last message is the in-progress reply for new requests.
+    // A retry reuses its existing failed reply instead.
     if (retryIndex === null) {
       setChatMessages((current) => [
         ...current,
-        {
-          role: "user",
-          content: userText,
-        },
+        { role: "user", content: userText },
+        { role: "assistant", content: "" },
       ]);
     } else {
       setChatMessages((current) =>
         current.map((item, index) =>
           index === retryIndex
-            ? {
-                ...item,
-                content: "Retrying your message...",
-                failed: false,
-              }
+            ? { role: "assistant", content: "" }
             : item
         )
       );
     }
 
+    let streamedText = "";
+
+    function updateReply(reply) {
+      if (controller.signal.aborted) return;
+      setChatMessages((current) => {
+        const index = retryIndex === null ? current.length - 1 : retryIndex;
+        if (!current[index]) return current;
+        const updated = [...current];
+        updated[index] = reply;
+        return updated;
+      });
+    }
+
     try {
       const token = await getApiToken();
+      if (controller.signal.aborted) return;
 
-      if (controller.signal.aborted) {
-        return;
-      }
-
-      const response = await fetch(`${API_URL}/chat`, {
+      const response = await fetch(`${API_URL}/chat/stream`, {
         method: "POST",
         signal: controller.signal,
         headers: {
@@ -348,63 +350,40 @@ function ConversationList() {
       if (!response.ok) {
         throw new Error(`API returned HTTP ${response.status}.`);
       }
-
-      const data = await response.json();
-
-      if (controller.signal.aborted) {
-        return;
+      if (!response.body) {
+        throw new Error("The API did not return a readable stream.");
       }
 
-      if (retryIndex === null) {
-        setChatMessages((current) => [
-          ...current,
-          {
-            role: "assistant",
-            content: data.response,
-          },
-        ]);
-      } else {
-        setChatMessages((current) =>
-          current.map((item, index) =>
-            index === retryIndex
-              ? {
-                  role: "assistant",
-                  content: data.response,
-                }
-              : item
-          )
-        );
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (controller.signal.aborted) return;
+        if (done) break;
+        streamedText += decoder.decode(value, { stream: true });
+        updateReply({ role: "assistant", content: streamedText });
       }
+      streamedText += decoder.decode();
+      if (controller.signal.aborted) return;
+      if (!streamedText.trim()) {
+        throw new Error("The agent returned an empty response.");
+      }
+      updateReply({ role: "assistant", content: streamedText });
     } catch (error) {
-      if (controller.signal.aborted) {
-        return;
-      }
-
-      const failedReply = {
+      if (controller.signal.aborted) return;
+      updateReply({
         role: "assistant",
-        content: `Sorry, I couldn't generate a reply. ${error.message}`,
+        content: streamedText
+          ? `${streamedText}\n\nResponse interrupted: ${error.message}`
+          : `Sorry, I couldn't generate a reply. ${error.message}`,
         failed: true,
         retryText: userText,
         retryConversationId: conversationId,
-      };
-
-      if (retryIndex === null) {
-        setChatMessages((current) => [
-          ...current,
-          failedReply,
-        ]);
-      } else {
-        setChatMessages((current) =>
-          current.map((item, index) =>
-            index === retryIndex ? failedReply : item
-          )
-        );
-      }
+      });
     } finally {
       if (abortControllerRef.current === controller) {
         abortControllerRef.current = null;
       }
-
       requestInProgressRef.current = false;
       setSending(false);
     }
@@ -435,44 +414,29 @@ function ConversationList() {
 
   function stopGenerating() {
     const controller = abortControllerRef.current;
-
-    if (!controller || controller.signal.aborted) {
-      return;
-    }
+    if (!controller || controller.signal.aborted) return;
 
     controller.abort();
-
     setChatMessages((current) => {
+      if (!current.length) return current;
       const updated = [...current];
-
-      const retryingIndex = updated.findIndex(
-        (item) => item.content === "Retrying your message..."
-      );
-
-      if (retryingIndex !== -1) {
-        const retryingMessage = updated[retryingIndex];
-
-        updated[retryingIndex] = {
-          ...retryingMessage,
-          content: "Request stopped.",
-          failed: true,
-        };
-
-        return updated;
-      }
+      const replyIndex = updated.length - 1;
+      const reply = updated[replyIndex];
+      if (reply.role !== "assistant") return current;
 
       const lastUserMessage = [...updated]
         .reverse()
         .find((item) => item.role === "user");
 
-      updated.push({
+      updated[replyIndex] = {
         role: "assistant",
-        content: "Request stopped.",
+        content: reply.content
+          ? `${reply.content}\n\n[Request stopped — partial response]`
+          : "Request stopped.",
         failed: true,
         retryText: lastUserMessage?.content ?? "",
         retryConversationId: selectedConversation?.id,
-      });
-
+      };
       return updated;
     });
   }
@@ -609,7 +573,7 @@ function ConversationList() {
                 </p>
               ))}
 
-              {sending && (
+              {sending && chatMessages.at(-1)?.content === "" && (
                 <p className="chat-message assistant-message">
                   <strong>AgentForge:</strong> Thinking…
                 </p>

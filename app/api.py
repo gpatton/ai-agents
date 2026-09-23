@@ -14,7 +14,7 @@ from app.logging_config import setup_logging
 from app.message_repository import MessageRepository
 from app.messages import create_message
 from fastapi import Query  # Add Query to your existing FastAPI imports.
-
+import asyncio
 load_dotenv()
 setup_logging()
 
@@ -477,11 +477,17 @@ async def stream_chat(
             await messages.save(user_message)
             await messages.save(assistant_message)
 
+        except asyncio.CancelledError:
+            logger.info(
+                "Agent streaming request cancelled | session_id=%s",
+                request.session_id,
+            )
+            raise
+
         except Exception:
             logger.exception(
                 "Agent streaming request failed"
             )
-
     return StreamingResponse(
         generate(),
         media_type="text/plain",

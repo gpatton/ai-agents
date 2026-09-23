@@ -3,6 +3,7 @@ import uuid
 from collections.abc import AsyncIterator
 
 from langchain.mcp import MCPAdapter
+from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.prebuilt import create_react_agent
@@ -165,7 +166,7 @@ class AgentForge:
         user_message: str,
         session_id: str,
     ) -> AsyncIterator[str]:
-        """Stream an AgentForge response."""
+        """Stream assistant text from AgentForge."""
 
         if self.agent is None:
             raise RuntimeError(
@@ -201,11 +202,10 @@ class AgentForge:
             },
             stream_mode="messages",
         ):
-            content = getattr(
-                message,
-                "content",
-                None,
-            )
+            if not isinstance(message, AIMessage):
+                continue
+
+            content = message.content
 
             if isinstance(content, str) and content:
                 yield content
