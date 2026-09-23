@@ -16,6 +16,8 @@ services:
       context: .
     image: agentforge:latest
     container_name: agentforge
+    dns_search:
+      - .
     env_file:
       - .env
     environment:
