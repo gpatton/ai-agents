@@ -11,8 +11,19 @@ services:
       - "127.0.0.1:55433:5432"
     volumes:
       - agentforge_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "pg_isready -U agentforge -d agentforge"
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   agentforge:
+    depends_on:
+      postgres:
+        condition: service_healthy
     build:
       context: .
     image: agentforge:latest
@@ -27,7 +38,6 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       - agentforge_chroma:/app/chroma_db
-
     healthcheck:
       test:
         - CMD
