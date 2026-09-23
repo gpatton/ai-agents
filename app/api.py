@@ -162,11 +162,20 @@ async def ready(
             detail="AgentForge is not ready.",
         )
 
+    try:
+        async with database.pool.connection(timeout=3) as connection:
+            await connection.execute("SELECT 1")
+    except Exception:
+        logger.exception("AgentForge readiness check: database unavailable")
+        raise HTTPException(
+            status_code=503,
+            detail="AgentForge database is not ready.",
+        )
+
     return {
         "status": "ready",
         "service": "AgentForge",
     }
-
 
 @app.post(
     "/conversations",
