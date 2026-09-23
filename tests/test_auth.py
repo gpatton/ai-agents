@@ -1,12 +1,13 @@
+
 from datetime import datetime, timedelta, timezone
-from app.auth import get_current_user_id
+
 import jwt
 import pytest
-
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jwt.exceptions import InvalidTokenError
 
 from app import auth
+from app.auth import get_current_user_id
 
 
 TEST_USER_ID = "user_test_123"
@@ -32,6 +33,7 @@ def make_token(**overrides):
         "sub": TEST_USER_ID,
         "iss": auth.CLERK_ISSUER,
         "aud": "agentforge-api",
+        "azp": "http://127.0.0.1:8001",
         "iat": now,
         "exp": now + timedelta(minutes=5),
     }
@@ -61,6 +63,16 @@ def test_valid_token():
 
     assert claims["sub"] == TEST_USER_ID
     assert claims["aud"] == "agentforge-api"
+    assert claims["azp"] == "http://127.0.0.1:8001"
+
+
+def test_wrong_authorized_party():
+    token = make_token(
+        azp="https://unauthorized.example.com"
+    )
+
+    with pytest.raises(InvalidTokenError):
+        auth.verify_clerk_token(token)
 
 
 def test_expired_token():
@@ -73,12 +85,14 @@ def test_expired_token():
         auth.verify_clerk_token(token)
 
 
-def test_wrong_audience():
+def test_different_audience_is_accepted():
     token = make_token(aud="another-application")
 
-    with pytest.raises(InvalidTokenError):
-        auth.verify_clerk_token(token)
+    claims = auth.verify_clerk_token(token)
 
+    assert claims["aud"] == "another-application"
+    assert claims["sub"] == TEST_USER_ID
+    assert claims["azp"] == "http://127.0.0.1:8001"
 
 def test_wrong_issuer():
     token = make_token(
@@ -100,6 +114,7 @@ def test_invalid_signature():
             "sub": TEST_USER_ID,
             "iss": auth.CLERK_ISSUER,
             "aud": "agentforge-api",
+            "azp": "http://127.0.0.1:8001",
             "iat": datetime.now(timezone.utc),
             "exp": datetime.now(timezone.utc)
             + timedelta(minutes=5),
