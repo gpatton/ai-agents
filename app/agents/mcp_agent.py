@@ -1,3 +1,4 @@
+
 import logging
 import uuid
 from collections.abc import AsyncIterator
@@ -8,6 +9,7 @@ from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.prebuilt import create_react_agent
+from psycopg_pool import AsyncConnectionPool
 
 from app.config import settings
 from app.tool_logging import ToolLoggingCallback
@@ -27,20 +29,25 @@ class AgentForge:
         self.adapter = None
         self.agent = None
         self.checkpointer = None
-        self.checkpointer_context = None
+        self.checkpointer_pool = None
 
     async def start(self) -> None:
         logger.info("Starting AgentForge")
 
-        # Connect to PostgreSQL for persistent LangGraph checkpoints.
-        self.checkpointer_context = (
-            AsyncPostgresSaver.from_conn_string(
-                settings.database_url
-            )
+        # Use a connection pool so the checkpointer can replace
+        # connections closed by a PostgreSQL restart.
+        self.checkpointer_pool = AsyncConnectionPool(
+            conninfo=settings.database_url,
+            min_size=1,
+            max_size=5,
+            open=False,
         )
 
-        self.checkpointer = (
-            await self.checkpointer_context.__aenter__()
+        await self.checkpointer_pool.open()
+        await self.checkpointer_pool.wait()
+
+        self.checkpointer = AsyncPostgresSaver(
+            self.checkpointer_pool
         )
 
         # Create/migrate LangGraph checkpoint tables.
@@ -252,16 +259,12 @@ class AgentForge:
                 None,
             )
 
-        if self.checkpointer_context is not None:
-            await self.checkpointer_context.__aexit__(
-                None,
-                None,
-                None,
-            )
+        if self.checkpointer_pool is not None:
+            await self.checkpointer_pool.close()
 
         self.agent = None
         self.adapter = None
         self.checkpointer = None
-        self.checkpointer_context = None
+        self.checkpointer_pool = None
 
         logger.info("AgentForge stopped")
