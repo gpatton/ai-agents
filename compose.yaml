@@ -33,7 +33,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://agentforge:agentforge@postgres:5432/agentforge
+      DATABASE_URL: "postgresql://agentforge:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/agentforge"
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
