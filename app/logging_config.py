@@ -4,6 +4,7 @@ from pathlib import Path
 
 LOG_DIR = Path("logs")
 LOG_DIR.mkdir(exist_ok=True)
+LOG_FILE = LOG_DIR / "agentforge.log"
 
 
 def setup_logging() -> None:
@@ -16,9 +17,11 @@ def setup_logging() -> None:
         handlers=[
             logging.StreamHandler(),
             logging.FileHandler(
-                LOG_DIR / "agentforge.log",
+                LOG_FILE,
                 encoding="utf-8",
             ),
         ],
         force=True,
     )
+
+    LOG_FILE.chmod(0o600)
