@@ -899,6 +899,43 @@ def test_other_user_cannot_stream_chat_in_conversation():
             None,
         )
 
+def test_other_user_cannot_stream_chat_events_in_conversation():
+    client = TestClient(app)
+
+    other_conversation = create_conversation(
+        "Private conversation",
+        user_id=OTHER_USER_ID,
+    )
+    other_conversation.id = "other-user-events-session"
+
+    fake_repository.conversations[
+        other_conversation.id
+    ] = other_conversation
+
+    fake_message_repository.messages.clear()
+
+    try:
+        response = client.post(
+            "/chat/events",
+            json={
+                "message": "This should be rejected",
+                "session_id": other_conversation.id,
+            },
+        )
+
+        assert response.status_code == 404
+        assert response.json() == {
+            "detail": "Conversation not found.",
+        }
+
+        assert fake_message_repository.messages == []
+
+    finally:
+        fake_repository.conversations.pop(
+            other_conversation.id,
+            None,
+        )
+
 def test_list_conversations_requires_authentication():
     saved_override = app.dependency_overrides.pop(
         get_registered_user_id
