@@ -6,3 +6,8 @@ agent-env/
 .venv/
 chroma_db/
 logs/
+
+# Local backups — never commit
+backups/
+app/auth.py_backup
+frontend/src/App.jsx.backup
