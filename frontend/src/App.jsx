@@ -1,5 +1,4 @@
-
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   SignedIn,
   SignedOut,
@@ -20,7 +19,7 @@ function ConversationList() {
     useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [input, setInput] = useState("");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState("Loading Conversations ..");
   const [sending, setSending] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
@@ -43,45 +42,47 @@ function ConversationList() {
     return token;
   }
 
-  async function loadConversations() {
-    setMessage("Loading conversations...");
+const loadConversations = useCallback(async () => {
 
-    try {
-      const token = await getApiToken();
-
-      const response = await fetch(`${API_URL}/conversations`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`API returned HTTP ${response.status}.`);
-      }
-
-      const data = await response.json();
-      setConversations(data);
-
-      setMessage(
-        data.length === 0
-          ? "You have no conversations yet."
-          : ""
-      );
-    } catch (error) {
-      setMessage(error.message);
-    }
-  }
-
-  useEffect(() => {
-    loadConversations();
-  }, []);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "end",
+  try {
+    const token = await getToken({
+      template: "agentforge-api",
     });
-  }, [chatMessages, sending]);
+
+    if (!token) {
+      throw new Error("Could not obtain an API token.");
+    }
+
+    const response = await fetch(`${API_URL}/conversations`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`API returned HTTP ${response.status}.`);
+    }
+
+    const data = await response.json();
+    setConversations(data);
+    setMessage(
+      data.length === 0 ? "You have no conversations yet." : ""
+    );
+  } catch (error) {
+    setMessage(error.message);
+  }
+}, [getToken]);
+
+useEffect(() => {
+  void loadConversations();
+}, [loadConversations]);
+
+useEffect(() => {
+  messagesEndRef.current?.scrollIntoView({
+    behavior: "smooth",
+    block: "end",
+  });
+}, [chatMessages, sending]);
 
   async function createNewConversation() {
     if (requestInProgressRef.current || loadingHistory) {
@@ -124,25 +125,30 @@ function ConversationList() {
     }
   }
 
-  useEffect(() => {
-    function handleKeyDown(event) {
-      if (
-        event.altKey &&
-        event.shiftKey &&
-        event.key.toLowerCase() === "n"
-      ) {
-        event.preventDefault();
-        createNewConversation();
-      }
+const createNewConversationRef = useRef(createNewConversation);
+
+useEffect(() => {
+  createNewConversationRef.current = createNewConversation;
+});
+
+useEffect(() => {
+  function handleKeyDown(event) {
+    if (
+      event.altKey &&
+      event.shiftKey &&
+      event.key.toLowerCase() === "n"
+    ) {
+      event.preventDefault();
+      void createNewConversationRef.current();
     }
+  }
 
-    window.addEventListener("keydown", handleKeyDown);
+  window.addEventListener("keydown", handleKeyDown);
 
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, []);
-
+  return () => {
+    window.removeEventListener("keydown", handleKeyDown);
+  };
+}, []);
   async function deleteConversation(conversation) {
     if (sending || loadingHistory) {
       return;
