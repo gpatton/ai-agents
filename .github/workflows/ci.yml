@@ -1,3 +1,4 @@
+
 name: AgentForge CI
 
 on:
@@ -32,6 +33,7 @@ jobs:
           CLERK_ISSUER: "https://clerk.example.test"
         run: |
           python -m pytest -v
+
   frontend:
     name: Frontend build
     runs-on: ubuntu-latest
@@ -53,6 +55,9 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Run frontend lint
+        run: npm run lint
 
       - name: Build frontend
         run: npm run build
