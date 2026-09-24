@@ -44,10 +44,9 @@ class ToolLoggingCallback(BaseCallbackHandler):
             self.tool_names[run_id] = tool_name
 
         logger.info(
-            "TOOL START | request_id=%s | tool=%s | input=%s",
+            "TOOL START | request_id=%s | tool=%s",
             self.request_id,
             tool_name,
-            input_str,
         )
 
         self.emit(
@@ -68,9 +67,9 @@ class ToolLoggingCallback(BaseCallbackHandler):
         tool_name = self.tool_names.pop(run_id, "unknown")
 
         logger.info(
-            "TOOL END | request_id=%s | output=%s",
+            "TOOL END | request_id=%s | tool=%s",
             self.request_id,
-            output,
+            tool_name,
         )
 
         self.emit(
@@ -91,9 +90,10 @@ class ToolLoggingCallback(BaseCallbackHandler):
         tool_name = self.tool_names.pop(run_id, "unknown")
 
         logger.error(
-            "TOOL ERROR | request_id=%s | error=%s",
+            "TOOL ERROR | request_id=%s | tool=%s | error_type=%s",
             self.request_id,
-            error,
+            tool_name,
+            type(error).__name__,
         )
 
         self.emit(
