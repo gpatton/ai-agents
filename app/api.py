@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 import logging
 import json
+import os
 from app.database import Database
 from app.auth import get_current_user_id
 from dotenv import load_dotenv
@@ -85,9 +86,22 @@ app = FastAPI(
 )
 from fastapi.middleware.cors import CORSMiddleware
 
+LOCAL_CORS_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8001",
+    "http://127.0.0.1:8001",
+]
+
+EXTRA_CORS_ORIGINS = [
+    origin.strip().rstrip("/")
+    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=LOCAL_CORS_ORIGINS + EXTRA_CORS_ORIGINS,
     allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
