@@ -22,6 +22,11 @@ ALLOWED_AUTHORIZED_PARTIES = {
     "http://127.0.0.1:5173",
 }
 
+ALLOWED_AUTHORIZED_PARTIES.update(
+    party.strip().rstrip("/")
+    for party in os.getenv("CLERK_ALLOWED_AUTHORIZED_PARTIES", "").split(",")
+    if party.strip()
+)
 
 def verify_clerk_token(token: str) -> dict:
     """Validate a Clerk session token and return its verified claims."""
