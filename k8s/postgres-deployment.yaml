@@ -25,6 +25,19 @@ spec:
           ports:
             - containerPort: 5432
 
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - agentforge
+                - -d
+                - agentforge
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
           env:
             - name: POSTGRES_DB
               value: agentforge

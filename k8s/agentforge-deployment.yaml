@@ -18,13 +18,45 @@ spec:
         app: agentforge
 
     spec:
+      securityContext:
+        fsGroup: 10001
+
       containers:
         - name: agentforge
           image: agentforge:latest
           imagePullPolicy: IfNotPresent
 
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+
           ports:
             - containerPort: 8000
+
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 5
+            failureThreshold: 24
+
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            periodSeconds: 10
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 20
+            failureThreshold: 3
 
           env:
             - name: CLERK_ISSUER
@@ -50,3 +82,12 @@ spec:
                 secretKeyRef:
                   name: agentforge-db-url
                   key: DATABASE_URL
+
+          volumeMounts:
+            - name: chroma-data
+              mountPath: /app/chroma_db
+
+      volumes:
+        - name: chroma-data
+          persistentVolumeClaim:
+            claimName: chroma-data
