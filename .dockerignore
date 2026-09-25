@@ -13,3 +13,5 @@ backups/
 *.sqlite3
 *.db
 *.bak
+# Frontend is built separately
+frontend/
