@@ -97,7 +97,6 @@ overrides==7.7.0
 packaging==26.3
 pathable==0.6.0
 platformdirs==4.11.9
-playwright==1.63.0
 pluggy==1.6.0
 propcache==0.5.4
 protobuf==7.36.1
