@@ -26,6 +26,15 @@ spec:
           image: agentforge:latest
           imagePullPolicy: IfNotPresent
 
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
           resources:
             requests:
               memory: "256Mi"
