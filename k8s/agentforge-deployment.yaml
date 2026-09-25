@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: agentforge
+  namespace: agentforge
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: agentforge
+
+  template:
+    metadata:
+      labels:
+        app: agentforge
+
+    spec:
+      containers:
+        - name: agentforge
+          image: agentforge:latest
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - containerPort: 8000
+
+          env:
+            - name: CLERK_ISSUER
+              valueFrom:
+                configMapKeyRef:
+                  name: agentforge-config
+                  key: CLERK_ISSUER
+
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: agentforge-secrets
+                  key: OPENAI_API_KEY
+
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: agentforge-secrets
+                  key: POSTGRES_PASSWORD
+
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: agentforge-db-url
+                  key: DATABASE_URL

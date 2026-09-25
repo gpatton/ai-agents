@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: agentforge-config
+  namespace: agentforge
+
+data:
+  CLERK_ISSUER: "https://your-clerk-domain.clerk.accounts.dev"

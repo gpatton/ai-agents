@@ -1,4 +1,3 @@
-
 import logging
 import uuid
 from collections.abc import AsyncIterator
@@ -9,6 +8,7 @@ from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.prebuilt import create_react_agent
+from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from app.config import settings
@@ -36,11 +36,19 @@ class AgentForge:
 
         # Use a connection pool so the checkpointer can replace
         # connections closed by a PostgreSQL restart.
+        #
+        # LangGraph's PostgreSQL checkpointer requires autocommit
+        # because its setup migrations use CREATE INDEX CONCURRENTLY.
         self.checkpointer_pool = AsyncConnectionPool(
             conninfo=settings.database_url,
             min_size=1,
             max_size=5,
             open=False,
+            kwargs={
+                "autocommit": True,
+                "prepare_threshold": 0,
+                "row_factory": dict_row,
+            },
         )
 
         await self.checkpointer_pool.open()
