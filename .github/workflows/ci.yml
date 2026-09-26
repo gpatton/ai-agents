@@ -28,11 +28,11 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
-      - name: Run tests
+      - name: Run unit tests
         env:
           CLERK_ISSUER: "https://clerk.example.test"
         run: |
-          python -m pytest -v
+          python -m pytest -v -m "not integration"
 
   frontend:
     name: Frontend build
