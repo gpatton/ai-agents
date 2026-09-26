@@ -31,6 +31,7 @@ spec:
             runAsUser: 10001
             runAsGroup: 10001
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
@@ -102,7 +103,19 @@ spec:
             - name: chroma-data
               mountPath: /app/chroma_db
 
+            - name: app-logs
+              mountPath: /app/logs
+
+            - name: tmp
+              mountPath: /tmp
+
       volumes:
         - name: chroma-data
           persistentVolumeClaim:
             claimName: chroma-data
+
+        - name: app-logs
+          emptyDir: {}
+
+        - name: tmp
+          emptyDir: {}
