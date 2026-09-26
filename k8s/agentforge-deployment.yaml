@@ -74,6 +74,12 @@ spec:
                   name: agentforge-config
                   key: CLERK_ISSUER
 
+            - name: CORS_ALLOWED_ORIGINS
+              value: "http://localhost:8081,http://127.0.0.1:8081"
+
+            - name: CLERK_ALLOWED_AUTHORIZED_PARTIES
+              value: "http://localhost:8081,http://127.0.0.1:8081"
+
             - name: OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:

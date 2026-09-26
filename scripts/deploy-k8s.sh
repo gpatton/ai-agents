@@ -3,6 +3,7 @@
 set -euo pipefail
 
 NAMESPACE="agentforge"
+CLUSTER="agentforge"
 
 echo "=== Deploying AgentForge to Kubernetes ==="
 
@@ -12,29 +13,29 @@ echo "=== Deploying AgentForge to Kubernetes ==="
 
 echo "Checking kind cluster..."
 
-if ! kind get clusters | grep -qx "agentforge"; then
-    echo "Error: kind cluster 'agentforge' does not exist."
-    echo "Create it first with:"
-    echo "kind create cluster --name agentforge"
+if ! kind get clusters | grep -qx "$CLUSTER"; then
+    echo "Error: kind cluster '$CLUSTER' does not exist."
     exit 1
 fi
 
 # ---------------------------------------------------------
-# Container image
+# Container images
 # ---------------------------------------------------------
 
-echo "Checking AgentForge Docker image..."
+echo "Checking Docker images..."
 
-if ! docker image inspect agentforge:latest >/dev/null 2>&1; then
-    echo "Error: agentforge:latest does not exist."
-    echo "Build it first with:"
-    echo "docker compose build agentforge"
-    exit 1
-fi
+for IMAGE in agentforge:latest agentforge-frontend:k8s; do
+    if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+        echo "Error: Docker image $IMAGE does not exist."
+        exit 1
+    fi
+done
 
-echo "Loading AgentForge image into kind..."
+echo "Loading backend image..."
+kind load docker-image agentforge:latest --name "$CLUSTER"
 
-kind load docker-image agentforge:latest --name agentforge
+echo "Loading frontend image..."
+kind load docker-image agentforge-frontend:k8s --name "$CLUSTER"
 
 # ---------------------------------------------------------
 # Namespace
@@ -100,20 +101,36 @@ kubectl rollout status \
     --timeout=120s
 
 # ---------------------------------------------------------
-# AgentForge
+# Backend
 # ---------------------------------------------------------
 
-echo "Deploying AgentForge..."
+echo "Deploying AgentForge backend..."
 
 kubectl apply -f k8s/agentforge-service.yaml
 kubectl apply -f k8s/agentforge-deployment.yaml
 
-echo "Waiting for AgentForge..."
+echo "Waiting for backend..."
 
 kubectl rollout status \
     deployment/agentforge \
     -n "$NAMESPACE" \
     --timeout=180s
+
+# ---------------------------------------------------------
+# Frontend
+# ---------------------------------------------------------
+
+echo "Deploying AgentForge frontend..."
+
+kubectl apply -f k8s/frontend-service.yaml
+kubectl apply -f k8s/frontend-deployment.yaml
+
+echo "Waiting for frontend..."
+
+kubectl rollout status \
+    deployment/agentforge-frontend \
+    -n "$NAMESPACE" \
+    --timeout=120s
 
 # ---------------------------------------------------------
 # Status
@@ -126,6 +143,9 @@ echo
 kubectl get pods,services,pvc -n "$NAMESPACE"
 
 echo
-echo "To access AgentForge locally:"
+echo "Frontend:"
+echo "kubectl port-forward -n agentforge service/agentforge-frontend 8081:80"
+
 echo
-echo "kubectl port-forward -n agentforge service/agentforge 8000:8000"
+echo "Backend:"
+echo "kubectl port-forward -n agentforge service/agentforge 8002:8000"
