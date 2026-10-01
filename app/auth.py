@@ -20,6 +20,7 @@ ALLOWED_AUTHORIZED_PARTIES = {
     "http://localhost:8001",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://gp-precision-3560.tailfe1a64.ts.net",
 }
 
 ALLOWED_AUTHORIZED_PARTIES.update(
