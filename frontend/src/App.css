@@ -259,3 +259,171 @@ button[type="submit"]:hover:not(:disabled) {
   font-size: 23px;
   line-height: 1;
 }
+
+.evaluation-icon {
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.evaluation-icon-pass {
+  color: #16a34a;
+}
+
+.evaluation-icon-fail {
+  color: #dc2626;
+}
+.evaluation-pass {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.evaluation-fail {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
+/* --------------------------------------------------
+   AgentForge Tool Activity
+-------------------------------------------------- */
+
+.tool-activity-panel {
+  margin: 20px 0;
+  padding: 18px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f9fafb;
+}
+
+.tool-activity-panel h3 {
+  margin: 0 0 12px;
+  color: #111827;
+  font-size: 17px;
+}
+
+.tool-activity-panel > p {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.tool-activity-panel code {
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: #e5e7eb;
+  color: #374151;
+  font-size: 12px;
+}
+
+.tool-activity-panel ol {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tool-event {
+  position: relative;
+  margin-bottom: 10px;
+  padding: 12px 14px 12px 18px;
+  border: 1px solid #e5e7eb;
+  border-radius: 9px;
+  background: white;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Status indicator on left side */
+
+.tool-event::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 4px;
+  border-radius: 9px 0 0 9px;
+  content: "";
+}
+
+.tool-event-start::before {
+  background: #3b82f6;
+}
+
+.tool-event-complete::before {
+  background: #22c55e;
+}
+
+.tool-event-error::before {
+  background: #ef4444;
+}
+
+.tool-event-start {
+  background: #eff6ff;
+}
+
+.tool-event-complete {
+  background: #f0fdf4;
+}
+
+.tool-event-error {
+  background: #fef2f2;
+}
+
+.tool-event strong {
+  color: #111827;
+}
+
+.tool-event details {
+  margin-top: 9px;
+}
+
+.tool-event summary {
+  cursor: pointer;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tool-event pre {
+  margin: 8px 0 0;
+  padding: 10px;
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  background: #111827;
+  color: #f9fafb;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+/* Evaluation header and refresh button */
+
+.evaluation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.evaluation-header h2 {
+  margin: 0;
+}
+
+.evaluation-refresh-button {
+  padding: 7px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.evaluation-refresh-button:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}

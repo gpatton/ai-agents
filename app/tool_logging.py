@@ -1,4 +1,6 @@
+
 import logging
+from time import perf_counter
 from typing import Any, Callable, Optional
 
 from langchain_core.callbacks import BaseCallbackHandler
@@ -10,7 +12,7 @@ ToolEventHandler = Callable[[dict[str, Any]], None]
 
 
 class ToolLoggingCallback(BaseCallbackHandler):
-    """Log tool execution and optionally report tool events."""
+    """Log tool execution, duration, and optionally report tool events."""
 
     def __init__(
         self,
@@ -21,6 +23,7 @@ class ToolLoggingCallback(BaseCallbackHandler):
         self.request_id = request_id
         self.on_event = on_event
         self.tool_names: dict[str, str] = {}
+        self.tool_start_times: dict[str, float] = {}
 
     def emit(self, event: dict[str, Any]) -> None:
         if self.on_event is not None:
@@ -42,6 +45,7 @@ class ToolLoggingCallback(BaseCallbackHandler):
 
         if run_id:
             self.tool_names[run_id] = tool_name
+            self.tool_start_times[run_id] = perf_counter()
 
         logger.info(
             "TOOL START | request_id=%s | tool=%s",
@@ -66,10 +70,18 @@ class ToolLoggingCallback(BaseCallbackHandler):
         run_id = str(kwargs.get("run_id", ""))
         tool_name = self.tool_names.pop(run_id, "unknown")
 
+        start_time = self.tool_start_times.pop(run_id, None)
+        duration_ms = (
+            round((perf_counter() - start_time) * 1000, 2)
+            if start_time is not None
+            else None
+        )
+
         logger.info(
-            "TOOL END | request_id=%s | tool=%s",
+            "TOOL END | request_id=%s | tool=%s | duration_ms=%s",
             self.request_id,
             tool_name,
+            duration_ms,
         )
 
         self.emit(
@@ -78,6 +90,7 @@ class ToolLoggingCallback(BaseCallbackHandler):
                 "tool": tool_name,
                 "run_id": run_id,
                 "output": str(output),
+                "duration_ms": duration_ms,
             }
         )
 
@@ -89,11 +102,20 @@ class ToolLoggingCallback(BaseCallbackHandler):
         run_id = str(kwargs.get("run_id", ""))
         tool_name = self.tool_names.pop(run_id, "unknown")
 
+        start_time = self.tool_start_times.pop(run_id, None)
+        duration_ms = (
+            round((perf_counter() - start_time) * 1000, 2)
+            if start_time is not None
+            else None
+        )
+
         logger.error(
-            "TOOL ERROR | request_id=%s | tool=%s | error_type=%s",
+            "TOOL ERROR | request_id=%s | tool=%s | "
+            "error_type=%s | duration_ms=%s",
             self.request_id,
             tool_name,
             type(error).__name__,
+            duration_ms,
         )
 
         self.emit(
@@ -102,5 +124,6 @@ class ToolLoggingCallback(BaseCallbackHandler):
                 "tool": tool_name,
                 "run_id": run_id,
                 "error": str(error),
+                "duration_ms": duration_ms,
             }
         )

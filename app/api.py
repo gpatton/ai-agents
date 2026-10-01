@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 import logging
 import json
 import os
+from pathlib import Path
 from app.database import Database
 from app.auth import get_current_user_id
 from dotenv import load_dotenv
@@ -673,3 +674,39 @@ async def stream_chat_events(
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+REPORT_DIR = Path("reports")
+
+
+@app.get("/evaluations")
+async def list_evaluations(
+    user_id: str = Depends(get_registered_user_id),
+):
+    """Return locally stored AgentForge evaluation reports."""
+
+    if not REPORT_DIR.exists():
+        return []
+
+    reports = []
+
+    for report_path in REPORT_DIR.glob("*.json"):
+        try:
+            report = json.loads(
+                report_path.read_text(encoding="utf-8")
+            )
+
+            report["filename"] = report_path.name
+            reports.append(report)
+
+        except (OSError, json.JSONDecodeError):
+            logger.exception(
+                "Failed to read evaluation report | file=%s",
+                report_path,
+            )
+
+    reports.sort(
+        key=lambda report: report.get("timestamp", ""),
+        reverse=True,
+    )
+
+    return reports

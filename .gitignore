@@ -11,3 +11,6 @@ logs/
 backups/
 app/auth.py_backup
 frontend/src/App.jsx.backup
+
+# Generated evaluation reports
+reports/*.json

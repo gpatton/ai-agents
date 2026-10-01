@@ -45,6 +45,7 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       - agentforge_chroma:/app/chroma_db
+      - ./reports:/app/reports:ro
     healthcheck:
       test:
         - CMD
