@@ -108,6 +108,10 @@ spec:
 
             - name: tmp
               mountPath: /tmp
+            
+            - name: reports-data
+              mountPath: /app/reports
+
 
       volumes:
         - name: chroma-data
@@ -119,3 +123,8 @@ spec:
 
         - name: tmp
           emptyDir: {}
+
+        - name: reports-data
+          persistentVolumeClaim:
+            claimName: reports-data
+
