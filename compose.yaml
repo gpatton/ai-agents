@@ -56,7 +56,32 @@ services:
       timeout: 5s
       retries: 6
       start_period: 60s
-
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: "/api"
+        VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:?Set VITE_CLERK_PUBLISHABLE_KEY in .env}
+    image: agentforge-frontend:latest
+    container_name: agentforge-frontend
+    restart: unless-stopped
+    depends_on:
+      agentforge:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:80"
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --quiet
+        - --tries=1
+        - --spider
+        - http://127.0.0.1/
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 volumes:
   agentforge_chroma:
   agentforge_postgres:
