@@ -251,9 +251,13 @@ Expected responses:
 After changing backend code:
 
 ```bash
-docker build -t agentforge:latest .
-kind load docker-image agentforge:latest --name agentforge
-kubectl rollout restart deployment/agentforge -n agentforge
+AGENTFORGE_VERSION=$(git rev-parse --short HEAD)
+docker build -t "agentforge:${AGENTFORGE_VERSION}" .
+kind load docker-image "agentforge:${AGENTFORGE_VERSION}" --name agentforge
+
+# Update the backend image tag in k8s/agentforge-deployment.yaml
+# to match AGENTFORGE_VERSION before applying.
+kubectl apply -f k8s/agentforge-deployment.yaml
 kubectl rollout status deployment/agentforge -n agentforge --timeout=180s
 ```
 

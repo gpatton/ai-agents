@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: agentforge-frontend:k8s
+          image: agentforge-frontend:ec7e2fd
           imagePullPolicy: Never
           ports:
             - containerPort: 80

@@ -23,7 +23,7 @@ spec:
 
       containers:
         - name: agentforge
-          image: agentforge:latest
+          image: agentforge:ec7e2fd
           imagePullPolicy: IfNotPresent
 
           securityContext:
