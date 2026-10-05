@@ -1,5 +1,3 @@
-mkdir -p scripts
-cat > scripts/deploy-kind.sh <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -84,8 +82,3 @@ kubectl --context="$CONTEXT" get deployments -n agentforge \
   -o custom-columns='NAME:.metadata.name,IMAGE:.spec.template.spec.containers[*].image'
 
 echo "Deployed version $VERSION. Refresh the dashboard and test chat and evaluations."
-EOF
-
-chmod +x scripts/deploy-kind.sh
-bash -n scripts/deploy-kind.sh
-git diff --check
