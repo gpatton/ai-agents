@@ -1,7 +1,6 @@
-
 # AgentForge
 
-AgentForge is a locally developed AI-agent application with a FastAPI backend and a React dashboard. It supports authenticated conversations, streaming agent responses, tool-execution details, document search, and persistent conversation history.
+AgentForge is a locally developed AI-agent application with a FastAPI backend and a React dashboard. It supports authenticated conversations, streaming agent responses, tool-execution details, document search, evaluation reports, and persistent conversation history.
 
 ## Technology stack
 
@@ -9,7 +8,7 @@ AgentForge is a locally developed AI-agent application with a FastAPI backend an
 - **Frontend:** React, Vite, and Clerk authentication
 - **Database:** PostgreSQL for application data and conversation checkpoints
 - **Document search:** Chroma and OpenAI embeddings
-- **Local deployment:** Docker Compose
+- **Local deployment:** Docker Compose and Kubernetes with kind
 - **Testing:** pytest and GitHub Actions
 
 ## Project structure
@@ -19,7 +18,10 @@ ai-agents/
 ├── app/                 # Backend API, agent, tools, and repositories
 ├── alembic/             # Database migrations
 ├── data/                # Source documents for document search
-├── frontend/            # React dashboard
+├── frontend/            # React dashboard and frontend container configuration
+├── k8s/                 # Kubernetes deployment, service, and storage manifests
+├── reports/             # Locally generated evaluation reports
+├── scripts/             # Deployment scripts
 ├── tests/               # Automated backend tests
 ├── .env.example         # Backend environment-variable template
 ├── compose.yaml         # Docker Compose services
@@ -38,6 +40,12 @@ For the Docker-based backend and locally running dashboard, install:
 You will also need an OpenAI API key and a configured Clerk application.
 
 Python 3.12 is required if you want to run the backend or its tests directly outside Docker.
+
+For the Kubernetes workflow, also install:
+
+- kind
+- kubectl
+- Python available as `python`, for the deployment script
 
 ## 1. Configure the backend
 
@@ -139,7 +147,7 @@ npm run dev
 
 Open the local URL printed by Vite in your browser, then sign in through Clerk.
 
-The dashboard provides a place to send requests, view responses, and inspect tool-execution details.
+The dashboard provides a place to send requests, view responses, inspect tool-execution details, and view available evaluation reports.
 
 ## 4. Run backend tests
 
@@ -199,100 +207,212 @@ docker compose logs --tail=100 agentforge
 
 **Document search fails:** Check the backend logs and confirm that the configured Chroma directory is writable. The Docker setup uses a persistent Chroma volume.
 
-## Development status
-
-AgentForge is under active development. The current setup is intended for local development and testing; production deployment configuration and documentation will be added separately.
-
 ## 8. Local Kubernetes deployment (kind)
 
-AgentForge also runs in a local kind cluster named `agentforge`, using the
-`agentforge` namespace. This section assumes the cluster, configuration,
-secrets, and deployments are already installed.
+AgentForge also runs in a local kind cluster named `agentforge`, using the `agentforge` namespace.
+
+This section assumes the cluster, configuration, secrets, storage claims, and deployments are already installed. It describes operating and updating the existing setup.
 
 ### Check deployment status
 
 ```bash
-kubectl config use-context kind-agentforge
-kubectl get pods -n agentforge
-kubectl get services -n agentforge
-kubectl get pvc -n agentforge
+kubectl --context=kind-agentforge get pods -n agentforge
+kubectl --context=kind-agentforge get services -n agentforge
+kubectl --context=kind-agentforge get pvc -n agentforge
 ```
 
 The backend, frontend, and PostgreSQL pods should be running and ready.
+
 The `chroma-data`, `postgres-data`, and `reports-data` claims should be bound.
+
+### Deploy both application images
+
+Configure `VITE_CLERK_PUBLISHABLE_KEY` in `frontend/.env.local`, or provide it as an environment variable.
+
+Use a Clerk publishable key beginning with `pk_test_` or `pk_live_`.
+
+From the project root, with a clean, committed working tree, run:
+
+```bash
+./scripts/deploy-kind.sh
+```
+
+The script:
+
+- Checks the required tools and existing cluster.
+- Reads the Clerk publishable key without an interactive prompt.
+- Builds the backend and frontend images with the current Git commit tag.
+- Builds the frontend with `VITE_API_URL=/api`.
+- Loads both images into the `agentforge` kind cluster.
+- Renders temporary deployment manifests containing the versioned images.
+- Applies them using the explicit `kind-agentforge` context.
+- Waits for both deployments to become ready.
+- Prints the deployed image references.
+
+The script does not edit the tracked deployment manifests. Reapplying those files directly can restore the older image tags recorded in them.
+
+The image tag identifies the Git commit used to build the application. Local frontend configuration is supplied separately at build time.
 
 ### Open the dashboard
 
 Run this in a dedicated terminal and leave it running:
 
 ```bash
-kubectl port-forward -n agentforge service/agentforge-frontend 8081:80
+kubectl --context=kind-agentforge port-forward \
+  -n agentforge service/agentforge-frontend 8081:80
 ```
 
 Open http://127.0.0.1:8081 and sign in through Clerk.
-The frontend's nginx proxy forwards `/api/` requests to FastAPI.
+
+The frontend’s nginx proxy forwards `/api/` requests to FastAPI.
+
+If the frontend pod is replaced during deployment, restart the port-forward if it stops.
 
 ### Check health and readiness
+
+With the port-forward running:
 
 ```bash
 curl http://127.0.0.1:8081/api/health
 curl http://127.0.0.1:8081/api/ready
 ```
 
-Expected responses:
+Expected health response:
 
 ```json
 {"status":"healthy","service":"AgentForge"}
+```
+
+Expected readiness response:
+
+```json
 {"status":"ready","service":"AgentForge"}
 ```
 
-### Update the backend image
-
-After changing backend code:
-
-```bash
-AGENTFORGE_VERSION=$(git rev-parse --short HEAD)
-docker build -t "agentforge:${AGENTFORGE_VERSION}" .
-kind load docker-image "agentforge:${AGENTFORGE_VERSION}" --name agentforge
-
-# Update the backend image tag in k8s/agentforge-deployment.yaml
-# to match AGENTFORGE_VERSION before applying.
-kubectl apply -f k8s/agentforge-deployment.yaml
-kubectl rollout status deployment/agentforge -n agentforge --timeout=180s
-```
+After deploying, also sign in to the dashboard, send a chat request, and check the evaluation results.
 
 ### Evaluation report storage
 
 The backend mounts the `reports-data` persistent volume at `/app/reports`.
-This allows reports to survive pod replacement while the container's root
-filesystem remains read-only.
+
+This allows reports to survive pod replacement while the container’s root filesystem remains read-only.
 
 To import local JSON reports after the deployment is ready:
 
 ```bash
-AGENTFORGE_POD=$(kubectl get pods -n agentforge -l app=agentforge --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}')
-kubectl cp reports/. "agentforge/${AGENTFORGE_POD}:/app/reports"
-kubectl exec -n agentforge "$AGENTFORGE_POD" -- ls -1 /app/reports
+AGENTFORGE_POD=$(kubectl --context=kind-agentforge get pods \
+  -n agentforge \
+  -l app=agentforge \
+  --field-selector=status.phase=Running \
+  -o jsonpath='{.items[0].metadata.name}')
+
+kubectl --context=kind-agentforge cp \
+  reports/. "agentforge/${AGENTFORGE_POD}:/app/reports"
+
+kubectl --context=kind-agentforge exec \
+  -n agentforge "$AGENTFORGE_POD" -- ls -1 /app/reports
 ```
 
 Refresh the dashboard to view the imported reports.
 
+If no reports have been imported or generated in the mounted directory, the dashboard may display “No evaluation reports found.”
+
+### Verify report persistence
+
+List the reports before replacing the backend pod:
+
+```bash
+kubectl --context=kind-agentforge exec \
+  -n agentforge deployment/agentforge -- ls -1 /app/reports
+```
+
+Restart the deployment and wait for it to become ready:
+
+```bash
+kubectl --context=kind-agentforge rollout restart \
+  deployment/agentforge -n agentforge
+
+kubectl --context=kind-agentforge rollout status \
+  deployment/agentforge -n agentforge --timeout=180s
+```
+
+List the reports again:
+
+```bash
+kubectl --context=kind-agentforge exec \
+  -n agentforge deployment/agentforge -- ls -1 /app/reports
+```
+
+The same report filenames should remain available.
+
 Report persistence across a backend rollout was verified on 5 October 2026.
-These local volumes are not backups; deleting the kind cluster can remove
-the stored data.
 
-### View backend logs
+These local volumes are not backups. Deleting the kind cluster or its storage can remove the stored data.
 
-```bash
-kubectl logs -n agentforge deployment/agentforge --tail=100
-```
-
-If the dashboard returns 404 for `/evaluations`, check that the deployed
-backend image includes the route:
+### View Kubernetes logs
 
 ```bash
-kubectl exec -n agentforge deployment/agentforge -- python -c 'from app.api import app; print([r.path for r in app.routes if "evaluation" in r.path])'
+kubectl --context=kind-agentforge logs \
+  -n agentforge deployment/agentforge --tail=100
 ```
 
-Expected output includes `['/evaluations']`. If it is missing, rebuild and
-load the backend image using the update commands above.
+To follow logs continuously:
+
+```bash
+kubectl --context=kind-agentforge logs \
+  -n agentforge deployment/agentforge -f
+```
+
+### Check deployed image versions
+
+```bash
+kubectl --context=kind-agentforge get deployments \
+  -n agentforge \
+  -o custom-columns='NAME:.metadata.name,IMAGE:.spec.template.spec.containers[*].image'
+```
+
+After running the deployment script, the backend and frontend should use the Git commit tag built by that run.
+
+### Kubernetes troubleshooting
+
+**Connection refused on port 8081:** Start or restart the frontend port-forward.
+
+**The deployment script refuses to run:** Check for uncommitted or untracked files:
+
+```bash
+git status --short
+```
+
+Review and commit or stash appropriate changes before deploying.
+
+**The frontend build fails because the Clerk key is missing:** Check that `VITE_CLERK_PUBLISHABLE_KEY` is set in `frontend/.env.local` or the environment.
+
+**The dashboard returns 404 for `/evaluations`:** Check that the deployed backend includes the route:
+
+```bash
+kubectl --context=kind-agentforge exec \
+  -n agentforge deployment/agentforge \
+  -- python -c 'from app.api import app; print([r.path for r in app.routes if "evaluation" in r.path])'
+```
+
+Expected output includes:
+
+```text
+['/evaluations']
+```
+
+If the route is missing, deploy the current committed code:
+
+```bash
+./scripts/deploy-kind.sh
+```
+
+**Writing reports fails with “Read-only file system”:** Confirm that the deployment mounts the `reports-data` claim at `/app/reports`. The root filesystem is intentionally read-only.
+
+## Development status
+
+AgentForge is under active development.
+
+Docker Compose and local Kubernetes deployment have been tested. The Kubernetes setup supports authenticated chat, streaming tool execution, and evaluation reports stored on a persistent volume.
+
+The current setup is intended for local development and testing. Production hosting, backups, and production deployment documentation remain future work.
