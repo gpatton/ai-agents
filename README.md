@@ -202,3 +202,93 @@ docker compose logs --tail=100 agentforge
 ## Development status
 
 AgentForge is under active development. The current setup is intended for local development and testing; production deployment configuration and documentation will be added separately.
+
+## 8. Local Kubernetes deployment (kind)
+
+AgentForge also runs in a local kind cluster named `agentforge`, using the
+`agentforge` namespace. This section assumes the cluster, configuration,
+secrets, and deployments are already installed.
+
+### Check deployment status
+
+```bash
+kubectl config use-context kind-agentforge
+kubectl get pods -n agentforge
+kubectl get services -n agentforge
+kubectl get pvc -n agentforge
+```
+
+The backend, frontend, and PostgreSQL pods should be running and ready.
+The `chroma-data`, `postgres-data`, and `reports-data` claims should be bound.
+
+### Open the dashboard
+
+Run this in a dedicated terminal and leave it running:
+
+```bash
+kubectl port-forward -n agentforge service/agentforge-frontend 8081:80
+```
+
+Open http://127.0.0.1:8081 and sign in through Clerk.
+The frontend's nginx proxy forwards `/api/` requests to FastAPI.
+
+### Check health and readiness
+
+```bash
+curl http://127.0.0.1:8081/api/health
+curl http://127.0.0.1:8081/api/ready
+```
+
+Expected responses:
+
+```json
+{"status":"healthy","service":"AgentForge"}
+{"status":"ready","service":"AgentForge"}
+```
+
+### Update the backend image
+
+After changing backend code:
+
+```bash
+docker build -t agentforge:latest .
+kind load docker-image agentforge:latest --name agentforge
+kubectl rollout restart deployment/agentforge -n agentforge
+kubectl rollout status deployment/agentforge -n agentforge --timeout=180s
+```
+
+### Evaluation report storage
+
+The backend mounts the `reports-data` persistent volume at `/app/reports`.
+This allows reports to survive pod replacement while the container's root
+filesystem remains read-only.
+
+To import local JSON reports after the deployment is ready:
+
+```bash
+AGENTFORGE_POD=$(kubectl get pods -n agentforge -l app=agentforge --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}')
+kubectl cp reports/. "agentforge/${AGENTFORGE_POD}:/app/reports"
+kubectl exec -n agentforge "$AGENTFORGE_POD" -- ls -1 /app/reports
+```
+
+Refresh the dashboard to view the imported reports.
+
+Report persistence across a backend rollout was verified on 5 October 2026.
+These local volumes are not backups; deleting the kind cluster can remove
+the stored data.
+
+### View backend logs
+
+```bash
+kubectl logs -n agentforge deployment/agentforge --tail=100
+```
+
+If the dashboard returns 404 for `/evaluations`, check that the deployed
+backend image includes the route:
+
+```bash
+kubectl exec -n agentforge deployment/agentforge -- python -c 'from app.api import app; print([r.path for r in app.routes if "evaluation" in r.path])'
+```
+
+Expected output includes `['/evaluations']`. If it is missing, rebuild and
+load the backend image using the update commands above.
