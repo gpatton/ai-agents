@@ -407,6 +407,26 @@ If the route is missing, deploy the current committed code:
 ./scripts/deploy-kind.sh
 ```
 
+### Roll back application images
+
+To restore a previously built Git commit tag:
+
+```bash
+./scripts/rollback-kind.sh ec7e2fd
+```
+
+Both backend and frontend images for the requested tag must exist in local
+Docker storage. The script loads them into kind, updates both deployments,
+and waits for readiness.
+
+The deployments update separately. If a step fails, inspect both image
+versions and rollout status before continuing.
+
+After rollback, restart the frontend port-forward if needed, then check
+dashboard chat and evaluation reports. Rollback changes application images;
+it does not reverse database migrations or restore stored data.
+
+
 **Writing reports fails with “Read-only file system”:** Confirm that the deployment mounts the `reports-data` claim at `/app/reports`. The root filesystem is intentionally read-only.
 
 ## Development status
