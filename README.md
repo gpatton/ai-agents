@@ -406,6 +406,75 @@ If the route is missing, deploy the current committed code:
 ```bash
 ./scripts/deploy-kind.sh
 ```
+### Back up PostgreSQL and evaluation reports
+
+From the project root:
+
+```bash
+./scripts/backup-kind.sh
+```
+
+The script creates a timestamped directory under `backups/` containing:
+
+- `postgres.dump`: PostgreSQL custom-format database backup.
+- `reports.tar.gz`: Evaluation reports from `/app/reports`.
+- Archive listings and deployed image references.
+- `SHA256SUMS`: Checksums for both archives.
+- `COMPLETE`: Created only after all backup steps succeed.
+
+Backups are excluded from Git and may contain private application data.
+Copy completed backups to a separate secure location for protection against
+loss of the local computer. Chroma data is not included.
+
+PostgreSQL is backed up with `pg_dump`. Reports are archived separately;
+the two archives do not represent a single synchronized application snapshot.
+
+### Test a database restore
+
+Set `BACKUP_DIR` to a completed backup directory:
+
+```bash
+BACKUP_DIR=backups/YOUR_BACKUP_DIRECTORY
+(cd "$BACKUP_DIR" && sha256sum -c SHA256SUMS)
+```
+
+If the checksums pass, restore into a separate temporary database:
+
+```bash
+AGENTFORGE_RESTORE_DB="agentforge_restore_test_$(date -u +%Y%m%d%H%M%S)"
+
+kubectl --context=kind-agentforge exec \
+  -n agentforge deployment/postgres \
+  -- createdb -U agentforge "$AGENTFORGE_RESTORE_DB" &&
+
+kubectl --context=kind-agentforge exec -i \
+  -n agentforge deployment/postgres \
+  -- pg_restore -U agentforge \
+  -d "$AGENTFORGE_RESTORE_DB" \
+  --exit-on-error --single-transaction \
+  < "$BACKUP_DIR/postgres.dump" &&
+
+kubectl --context=kind-agentforge exec \
+  -n agentforge deployment/postgres \
+  -- psql -U agentforge -d "$AGENTFORGE_RESTORE_DB" -c '\dt'
+```
+
+After reviewing the restored tables, remove the temporary database:
+
+```bash
+if [[ "${AGENTFORGE_RESTORE_DB:-}" == agentforge_restore_test_* ]]; then
+  kubectl --context=kind-agentforge exec \
+    -n agentforge deployment/postgres \
+    -- dropdb -U agentforge "$AGENTFORGE_RESTORE_DB"
+else
+  echo "Temporary database name missing or unexpected; nothing deleted."
+fi
+```
+
+A restore into a temporary database completed successfully on
+5 October 2026, with all eight public tables present.
+This verifies archive restoration; application-level recovery checks
+remain separate.
 
 ### Roll back application images
 
