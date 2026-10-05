@@ -429,6 +429,19 @@ loss of the local computer. Chroma data is not included.
 PostgreSQL is backed up with `pg_dump`. Reports are archived separately;
 the two archives do not represent a single synchronized application snapshot.
 
+### Back up Chroma and verify a restore
+
+```bash
+./scripts/backup-chroma-kind.sh
+```
+
+This briefly stops the backend to archive the `chroma-data` volume,
+then attempts to restart it. Chroma backups are separate from PostgreSQL
+and report backups.
+
+See [Chroma backup and restore verification](docs/chroma-backup-restore.md)
+for prerequisites, recovery checks, and an isolated vector-retrieval test.
+
 ### Test a database restore
 
 Set `BACKUP_DIR` to a completed backup directory:
@@ -504,4 +517,4 @@ AgentForge is under active development.
 
 Docker Compose and local Kubernetes deployment have been tested. The Kubernetes setup supports authenticated chat, streaming tool execution, and evaluation reports stored on a persistent volume.
 
-The current setup is intended for local development and testing. Production hosting, backups, and production deployment documentation remain future work.
+The current setup is intended for local development and testing. Local backup scripts are available for PostgreSQL, evaluation reports, and Chroma. Isolated restore checks have passed for PostgreSQL and Chroma. Production hosting, automated off-machine backups, and production deployment documentation remain future work.
